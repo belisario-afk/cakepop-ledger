@@ -2,95 +2,116 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Cake Pop Ledger</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="description" content="Offline-first sales & expense tracker for a cake pop business with ingredients, encryption & backups." />
-  <meta name="theme-color" content="#8146ff" />
+  <title>SmallBatch – Sales • Costs • Ingredients</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="description" content="SmallBatch: Offline-first sales, costs & ingredient tracking for small food businesses." />
+  <meta name="theme-color" content="#0d9488" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <!-- Updated CSP to allow Google Identity Services -->
+  <!-- CSP updated for Google Identity + GitHub API -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com https://*.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.gstatic.com; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; frame-src https://accounts.google.com;">
   <meta name="color-scheme" content="dark light" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/svg+xml" href="assets/icons/icon-source.svg" />
   <link rel="alternate icon" href="assets/icons/icon-192.png" sizes="192x192" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="SmallBatch" />
   <style>
-    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif; margin:0; background:#121212; color:#eee; }
+    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif; margin:0; background:#0f1617; color:#f2f7f7;}
     .loading { display:flex; align-items:center; justify-content:center; height:100dvh; font-size:1.1rem; letter-spacing:.5px;}
-    .auth-bar { display:flex; gap:.5rem; align-items:center; }
-    .auth-bar button { background:#333; border:1px solid #444; color:#eee; padding:.4rem .7rem; border-radius:8px; cursor:pointer; font-size:.65rem;}
-    .auth-user { font-size:.6rem; opacity:.7; }
   </style>
   <link rel="stylesheet" href="assets/css/styles.css" />
-  <!-- Google Identity Services (optional; safe if client_id not configured yet) -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    // Optional runtime override:
+    // window.SMALLBATCH_GOOGLE_CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+  </script>
 </head>
 <body>
-  <noscript>Please enable JavaScript to use the ledger.</noscript>
+  <noscript>Please enable JavaScript to use SmallBatch.</noscript>
   <div id="app" class="app">
-    <header class="topbar">
-      <h1>🎂 Cake Pop Ledger</h1>
-      <nav class="nav" id="nav">
-        <button data-view="dashboard" class="nav-btn active">Dashboard</button>
-        <button data-view="sales" class="nav-btn">Sales</button>
-        <button data-view="products" class="nav-btn">Products</button>
-        <button data-view="recipes" class="nav-btn">Recipes</button>
-        <button data-view="ingredients" class="nav-btn">Ingredients</button>
-        <button data-view="expenses" class="nav-btn">Expenses</button>
-        <button data-view="data" class="nav-btn">Data</button>
-        <button id="darkModeBtn" title="Toggle dark/light">🌓</button>
+    <header class="topbar" role="banner">
+      <div class="brand">
+        <span class="logo" aria-hidden="true">🧁</span>
+        <div class="brand-text">
+          <h1>SmallBatch</h1>
+          <p class="slogan">Sales • Costs • Ingredients</p>
+        </div>
+      </div>
+      <nav class="nav primary-nav" id="nav" aria-label="Main navigation">
+        <button data-view="dashboard" class="nav-btn active" aria-label="Dashboard">📊<span>Dashboard</span></button>
+        <button data-view="sales" class="nav-btn" aria-label="Sales">🛒<span>Sales</span></button>
+        <button data-view="products" class="nav-btn" aria-label="Products">🍱<span>Products</span></button>
+        <button data-view="recipes" class="nav-btn" aria-label="Recipes">🧪<span>Recipes</span></button>
+        <button data-view="ingredients" class="nav-btn" aria-label="Ingredients">🧂<span>Ingredients</span></button>
+        <button data-view="expenses" class="nav-btn" aria-label="Expenses">💸<span>Expenses</span></button>
+        <button data-view="data" class="nav-btn" aria-label="Data & Backup">🗄<span>Data</span></button>
       </nav>
-      <div class="auth-bar">
-        <div id="gSignInContainer"></div>
-        <span id="authUser" class="auth-user"></span>
-        <button id="signOutBtn" style="display:none;">Sign Out</button>
+      <div class="control-cluster">
+        <button id="darkModeBtn" title="Toggle light/dark mode" aria-label="Toggle dark/light mode">🌓</button>
+        <button id="contrastBtn" title="Toggle high contrast" aria-label="Toggle high contrast mode">🔆</button>
+        <div class="auth-bar">
+          <div id="gSignInContainer" aria-label="Google Sign In"></div>
+          <span id="authUser" class="auth-user" aria-live="polite">Guest</span>
+          <button id="signOutBtn" style="display:none;" aria-label="Sign out">Sign Out</button>
+        </div>
       </div>
     </header>
 
-    <main id="viewContainer" class="views">
-      <div class="loading">Loading...</div>
+    <main id="viewContainer" class="views" role="main">
+      <div class="loading">Loading SmallBatch...</div>
     </main>
 
-    <footer class="footer">
-      <small>&copy; <span id="year"></span> Cake Pop Ledger · Local only unless you enable gist / auth · <a href="#" id="exportJsonLink">Export JSON</a></small>
+    <footer class="footer" role="contentinfo">
+      <small>
+        &copy; <span id="year"></span> SmallBatch · Local-first ·
+        <a href="#" id="exportJsonLink">Export JSON</a>
+      </small>
     </footer>
+
+    <nav class="bottom-nav" id="bottomNav" aria-label="Quick navigation">
+      <button data-view="dashboard" class="nav-btn" aria-label="Dashboard">📊<span>Dashboard</span></button>
+      <button data-view="sales" class="nav-btn" aria-label="Sales">🛒<span>Sales</span></button>
+      <button data-view="products" class="nav-btn" aria-label="Products">🍱<span>Products</span></button>
+      <button data-view="data" class="nav-btn" aria-label="Data">🗄<span>Data</span></button>
+    </nav>
   </div>
 
-  <!-- Templates -->
+  <!-- Templates (shared across views) -->
   <template id="tpl-dashboard">
     <section class="panel-grid">
-      <div class="card metric"><h3>Revenue</h3><p id="m-revenue">$0</p></div>
-      <div class="card metric"><h3>COGS</h3><p id="m-cogs">$0</p></div>
-      <div class="card metric"><h3>Gross Profit</h3><p id="m-gross">$0</p></div>
-      <div class="card metric"><h3>Net Profit</h3><p id="m-net">$0</p></div>
-      <div class="card metric"><h3>Margin</h3><p id="m-margin">0%</p></div>
-      <div class="card metric"><h3>Avg Order</h3><p id="m-aov">$0</p></div>
+      <div class="card metric" tabindex="0"><h3>Revenue</h3><p id="m-revenue">$0</p></div>
+      <div class="card metric" tabindex="0"><h3>COGS</h3><p id="m-cogs">$0</p></div>
+      <div class="card metric" tabindex="0"><h3>Gross Profit</h3><p id="m-gross">$0</p></div>
+      <div class="card metric" tabindex="0"><h3>Net Profit</h3><p id="m-net">$0</p></div>
+      <div class="card metric" tabindex="0"><h3>Margin</h3><p id="m-margin">0%</p></div>
+      <div class="card metric" tabindex="0"><h3>Avg Order</h3><p id="m-aov">$0</p></div>
     </section>
     <section class="card">
-      <h2>Trends (Last 30 Days)</h2>
-      <canvas id="chartRevenue" height="140"></canvas>
+      <h2 class="section-title">Last 30 Days Revenue Trend</h2>
+      <canvas id="chartRevenue" height="160" aria-label="Revenue line chart"></canvas>
     </section>
     <section class="card">
-      <h2>Top Flavors</h2>
-      <ul id="topFlavors" class="simple-list"></ul>
+      <h2 class="section-title">Top Products</h2>
+      <ul id="topFlavors" class="simple-list" aria-live="polite"></ul>
     </section>
   </template>
 
   <template id="tpl-products">
     <section class="card">
-      <h2>Products / Flavors</h2>
-      <form id="productForm" class="grid-form" autocomplete="off">
-        <label>Name <input name="name" required maxlength="40" /></label>
-        <label>Cost per Unit ($) <input type="number" step="0.01" name="unitCost" required /></label>
+      <h2>Products</h2>
+      <form id="productForm" class="grid-form" autocomplete="off" aria-label="Add product form">
+        <label>Name <input name="name" required maxlength="40" aria-required="true" /></label>
+        <label>Base Cost per Unit ($) <input type="number" step="0.01" name="unitCost" required /></label>
         <label>Default Price ($) <input type="number" step="0.01" name="unitPrice" required /></label>
-        <p class="note">If a recipe exists, unit cost is calculated from ingredients.</p>
+        <p class="help">If a recipe exists, its computed cost overrides base cost.</p>
         <button type="submit">Add Product</button>
       </form>
     </section>
     <section class="card">
       <h2>Product List</h2>
-      <table class="data-table" id="productsTable">
+      <table class="data-table focus-table" id="productsTable">
         <thead>
-          <tr><th>Name</th><th>Base Cost</th><th>Recipe Cost</th><th>Price</th><th>Margin%</th><th></th></tr>
+          <tr><th>Name</th><th>Base Cost</th><th>Recipe Cost</th><th>Price</th><th>Margin%</th><th>Delete</th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -99,7 +120,7 @@
 
   <template id="tpl-recipes">
     <section class="card">
-      <h2>Recipes (Link Ingredients to Products)</h2>
+      <h2>Recipes</h2>
       <form id="recipeForm" class="grid-form">
         <label>Product
           <select name="productId" required></select>
@@ -107,19 +128,19 @@
         <label>Ingredient
           <select name="ingredientId" required></select>
         </label>
-        <label>Qty (ingredient units)<input type="number" step="0.0001" name="quantity" required /></label>
-        <button type="submit">Add / Update Ingredient</button>
+        <label>Quantity (ingredient units)<input type="number" step="0.0001" name="quantity" required /></label>
+        <button type="submit">Add / Update</button>
       </form>
     </section>
     <section class="card">
       <h2>Recipe Details</h2>
       <div class="toolbar">
-        <select id="recipeProductSelect"></select>
-        <button id="recalcRecipeBtn">Recalc Cost</button>
+        <select id="recipeProductSelect" aria-label="Select product to view recipe"></select>
+        <button id="recalcRecipeBtn">Recalculate</button>
       </div>
-      <table class="data-table" id="recipeTable">
+      <table class="data-table focus-table" id="recipeTable">
         <thead>
-          <tr><th>Ingredient</th><th>Qty</th><th>Unit Cost</th><th>Line Cost</th><th></th></tr>
+          <tr><th>Ingredient</th><th>Qty</th><th>Unit Cost</th><th>Line Cost</th><th>Remove</th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -132,16 +153,16 @@
       <h2>Ingredients</h2>
       <form id="ingredientForm" class="grid-form" autocomplete="off">
         <label>Name <input name="name" required maxlength="50" /></label>
-        <label>Unit (e.g. g, ml, pc)<input name="unit" required maxlength="12" /></label>
+        <label>Unit (g / ml / pc) <input name="unit" required maxlength="12" /></label>
         <label>Cost / Unit ($)<input type="number" step="0.0001" name="costPerUnit" required /></label>
         <button type="submit">Add Ingredient</button>
       </form>
     </section>
     <section class="card">
       <h2>Ingredient List</h2>
-      <table class="data-table" id="ingredientsTable">
+      <table class="data-table focus-table" id="ingredientsTable">
         <thead>
-          <tr><th>Name</th><th>Unit</th><th>Cost/Unit</th><th></th></tr>
+          <tr><th>Name</th><th>Unit</th><th>Cost/Unit</th><th>Delete</th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -156,7 +177,7 @@
         <label>Product
           <select name="productId" required></select>
         </label>
-        <label>Qty <input type="number" name="quantity" min="1" value="1" required /></label>
+        <label>Quantity <input type="number" name="quantity" min="1" value="1" required /></label>
         <label>Unit Price ($)<input type="number" name="unitPrice" step="0.01" required /></label>
         <label>Discount ($)<input type="number" name="discount" step="0.01" value="0" /></label>
         <label>Notes <input type="text" name="notes" maxlength="120" /></label>
@@ -166,16 +187,14 @@
     <section class="card">
       <h2>Sales <small id="salesCount"></small></h2>
       <div class="toolbar">
-        <input type="date" id="salesFrom" />
-        <input type="date" id="salesTo" />
+        <input type="date" id="salesFrom" aria-label="From date"/>
+        <input type="date" id="salesTo" aria-label="To date"/>
         <button id="filterSalesBtn">Filter</button>
         <button id="clearSalesFilterBtn">Clear</button>
       </div>
-      <table class="data-table" id="salesTable">
+      <table class="data-table focus-table" id="salesTable">
         <thead>
-          <tr>
-            <th>Date</th><th>Product</th><th>Qty</th><th>Unit $</th><th>Discount</th><th>Total $</th><th>Notes</th><th></th>
-          </tr>
+          <tr><th>Date</th><th>Product</th><th>Qty</th><th>Unit $</th><th>Discount</th><th>Total $</th><th>Notes</th><th>Delete</th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -204,14 +223,14 @@
     <section class="card">
       <h2>Expenses <small id="expenseTotal"></small></h2>
       <div class="toolbar">
-        <input type="date" id="expFrom" />
-        <input type="date" id="expTo" />
+        <input type="date" id="expFrom" aria-label="From date" />
+        <input type="date" id="expTo" aria-label="To date"/>
         <button id="filterExpBtn">Filter</button>
         <button id="clearExpFilterBtn">Clear</button>
       </div>
-      <table class="data-table" id="expensesTable">
+      <table class="data-table focus-table" id="expensesTable">
         <thead>
-          <tr><th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr>
+          <tr><th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th>Delete</th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -221,21 +240,21 @@
   <template id="tpl-data">
     <section class="card">
       <h2>Data & Backup</h2>
-      <div class="toolbar" style="flex-direction:column;align-items:flex-start;gap:.6rem;">
-        <div>
-          <button id="exportJsonBtn">Export JSON (Plain)</button>
+      <div class="toolbar vertical">
+        <div class="btn-row">
+          <button id="exportJsonBtn">Export JSON</button>
           <button id="exportEncryptedBtn">Export Encrypted</button>
-          <button id="exportCsvBtn">Export CSV (Sales)</button>
+          <button id="exportCsvBtn">Sales CSV</button>
         </div>
-        <div>
-          <label>Import JSON <input type="file" id="importJsonInput" accept="application/json" /></label>
-          <label>Import Encrypted JSON <input type="file" id="importEncryptedInput" accept="application/json" /></label>
+        <div class="btn-row">
+          <label class="file-label">Import JSON <input type="file" id="importJsonInput" accept="application/json" /></label>
+          <label class="file-label">Import Encrypted <input type="file" id="importEncryptedInput" accept="application/json" /></label>
         </div>
-        <div>
-          <button id="resetAllBtn" class="danger">⚠ Reset All Data</button>
+        <div class="btn-row">
+          <button id="resetAllBtn" class="danger">Reset All Data</button>
         </div>
       </div>
-      <p class="note">Encrypted export uses AES‑GCM with PBKDF2; losing the password means permanent loss of that export.</p>
+      <p class="note">Encrypted export uses AES‑GCM (password not stored). Losing password = unrecoverable.</p>
     </section>
 
     <section class="card">
@@ -244,7 +263,7 @@
         <label>GitHub Token (gist scope)
           <input type="password" name="token" autocomplete="off" />
         </label>
-        <label>Gist ID (leave blank to create)
+        <label>Gist ID (blank = create)
           <input name="gistId" />
         </label>
         <label>Auto Backup (minutes)
@@ -252,9 +271,9 @@
         </label>
         <button type="submit">Save Settings</button>
       </form>
-      <div class="toolbar">
+      <div class="toolbar wrap">
         <button id="gistBackupBtn">Manual Backup</button>
-        <button id="gistRestoreBtn">Restore From Gist</button>
+        <button id="gistRestoreBtn">Restore</button>
       </div>
       <p class="note" id="gistStatus"></p>
     </section>

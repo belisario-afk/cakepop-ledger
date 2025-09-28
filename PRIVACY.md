@@ -1,36 +1,26 @@
-# Privacy Policy
+# Privacy Policy (SmallBatch)
 
-Cake Pop Ledger stores all operational data (products, sales, expenses) locally in the user's browser via LocalStorage.
-
-No data is sent to any server by default.
+SmallBatch stores all operational data (products, ingredients, recipes, sales, expenses) locally in your browser via LocalStorage. Data never leaves your device unless you enable GitHub Gist backups or manually export it.
 
 ## Data Stored
-
-- Products (name, cost, price)
-- Sales (date, product ID, quantity, unit price, discount, notes)
+- Products (name, costs, price)
+- Ingredients (unit, cost per unit)
+- Recipes (ingredient → quantity)
+- Sales (date, product, quantity, unit price, discount, notes)
 - Expenses (date, category, amount, notes)
 - Meta timestamps
 
-## Data Removal
+## Export / Encryption
+Plain JSON & encrypted JSON exports are user‑initiated.
 
-Clear browser site data OR use Reset All Data in the Data view.
+## Removal
+Use "Reset All Data" (per signed-in user) or clear site storage in browser settings.
 
-## Backups
+## Third Parties
+- Google Identity Services (only for sign-in & ID token).
+- GitHub API (only if you configure gist backups).
 
-User-triggered exports produce JSON (and CSV for sales) which may then be stored anywhere under the user's control.
-
-## Third-Party Sharing
-
-None.
-
-## Cookies
-
-No cookies are set.
-
-## Analytics
-
-None.
+No analytics, no ads.
 
 ## Changes
-
-This document may evolve if sync/backends are added.
+Updates to privacy will appear here. Continue use implies acceptance.

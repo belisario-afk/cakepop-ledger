@@ -1,4 +1,3 @@
-// Extended UI
 import {
   fmtMoney, uuid, parseNum, betweenDates, todayISO, downloadBlob
 } from './utils.js';
@@ -27,6 +26,9 @@ export function switchView(view){
   document.querySelectorAll('.nav-btn').forEach(b=>{
     b.classList.toggle('active', b.dataset.view===view);
   });
+  document.querySelectorAll('.bottom-nav .nav-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.view===view);
+  });
   render();
 }
 
@@ -36,17 +38,13 @@ function fillDashboard(){
   const sales = getSales();
   const expenses = getExpenses();
   const m = computeMetrics(sales, expenses);
-
   el('m-revenue').textContent = fmtMoney(m.revenue);
   el('m-cogs').textContent = fmtMoney(m.cogs);
   el('m-gross').textContent = fmtMoney(m.gross);
   el('m-net').textContent = fmtMoney(m.net);
   el('m-margin').textContent = (m.margin).toFixed(1)+'%';
   el('m-aov').textContent = fmtMoney(m.aov);
-
-  const series = dailyRevenueSeries(30);
-  lineChart(el('chartRevenue'), series);
-
+  lineChart(el('chartRevenue'), dailyRevenueSeries(30));
   const list = el('topFlavors');
   list.innerHTML = '';
   topProducts().forEach(p=>{
@@ -58,32 +56,29 @@ function fillDashboard(){
 
 function fillProducts(){
   const tbody = el('productsTable').querySelector('tbody');
-  tbody.innerHTML = '';
+  tbody.innerHTML='';
   getProducts().forEach(p=>{
     const baseCost = productBaseCost(p.id);
-    const rCost = productRecipeCost(p.id);
+    const recipeCost = productRecipeCost(p.id);
     const effective = productCost(p.id);
     const margin = p.unitPrice ? ((p.unitPrice - effective)/p.unitPrice*100).toFixed(1) : '0';
-    const recipeCostDisplay = rCost !== null ? fmtMoney(rCost) : '-';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${p.name}</td>
       <td>${fmtMoney(baseCost)}</td>
-      <td>${recipeCostDisplay}</td>
+      <td>${recipeCost !== null ? fmtMoney(recipeCost) : '-'}</td>
       <td>${fmtMoney(p.unitPrice)}</td>
       <td>${margin}%</td>
-      <td><button data-del="${p.id}" aria-label="Delete ${p.name}">Del</button></td>
+      <td><button data-del="${p.id}" aria-label="Delete product ${p.name}">Del</button></td>
     `;
     tbody.appendChild(tr);
   });
   tbody.addEventListener('click', e=>{
     if (e.target.matches('button[data-del]')){
-      const id = e.target.getAttribute('data-del');
-      if (confirm('Delete product (and its recipe)?')) {
-        removeProduct(id);
+      if (confirm('Delete product (and recipe)?')){
+        removeProduct(e.target.getAttribute('data-del'));
         fillProducts();
-        if (currentView==='sales') fillSales();
-        if (currentView==='dashboard') fillDashboard();
+        fillDashboard();
       }
     }
   }, { once:true });
@@ -94,19 +89,18 @@ function fillSales(){
   const to = el('salesTo').value;
   const tbody = el('salesTable').querySelector('tbody');
   tbody.innerHTML='';
-  const prodLookup = Object.fromEntries(getProducts().map(p=>[p.id,p]));
+  const prod = Object.fromEntries(getProducts().map(p=>[p.id,p]));
   const filtered = getSales().filter(s=>betweenDates(s.date, from, to));
   el('salesCount').textContent = `${filtered.length} rows`;
-  filtered.sort((a,b)=> b.date.localeCompare(a.date)).forEach(s=>{
+  filtered.sort((a,b)=>b.date.localeCompare(a.date)).forEach(s=>{
     const tr = document.createElement('tr');
-    const total = saleTotal(s);
     tr.innerHTML = `
       <td>${s.date}</td>
-      <td>${prodLookup[s.productId]?.name || s.productId}</td>
+      <td>${prod[s.productId]?.name || s.productId}</td>
       <td>${s.quantity}</td>
       <td>${fmtMoney(s.unitPrice)}</td>
       <td>${fmtMoney(s.discount||0)}</td>
-      <td>${fmtMoney(total)}</td>
+      <td>${fmtMoney(saleTotal(s))}</td>
       <td>${(s.notes||'').replace(/</g,'&lt;')}</td>
       <td><button data-sale-del="${s.id}" aria-label="Delete sale">x</button></td>
     `;
@@ -114,14 +108,12 @@ function fillSales(){
   });
   tbody.addEventListener('click', e=>{
     if (e.target.matches('button[data-sale-del]')){
-      const id = e.target.getAttribute('data-sale-del');
-      if (confirm('Delete sale?')) {
-        removeSale(id);
-        fillSales();
-        fillDashboard();
+      if (confirm('Delete this sale?')){
+        removeSale(e.target.getAttribute('data-sale-del'));
+        fillSales(); fillDashboard();
       }
     }
-  }, { once:true });
+  },{ once:true });
 }
 
 function fillExpenses(){
@@ -130,8 +122,7 @@ function fillExpenses(){
   const tbody = el('expensesTable').querySelector('tbody');
   tbody.innerHTML='';
   const filtered = getExpenses().filter(e=>betweenDates(e.date, from, to));
-  const total = filtered.reduce((a,e)=>a + (parseFloat(e.amount)||0),0);
-  el('expenseTotal').textContent = fmtMoney(total);
+  el('expenseTotal').textContent = fmtMoney(filtered.reduce((a,e)=>a+parseNum(e.amount),0));
   filtered.sort((a,b)=>b.date.localeCompare(a.date)).forEach(e=>{
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -139,28 +130,26 @@ function fillExpenses(){
       <td>${e.category}</td>
       <td>${fmtMoney(e.amount)}</td>
       <td>${(e.notes||'').replace(/</g,'&lt;')}</td>
-      <td><button data-exp-del="${e.id}" aria-label="Delete expense">x</button></td>
+      <td><button data-exp-del="${e.id}">x</button></td>
     `;
     tbody.appendChild(tr);
   });
-  tbody.addEventListener('click', (e)=>{
+  tbody.addEventListener('click', e=>{
     if (e.target.matches('button[data-exp-del]')){
-      const id = e.target.getAttribute('data-exp-del');
       if (confirm('Delete expense?')){
-        removeExpense(id);
-        fillExpenses();
-        fillDashboard();
+        removeExpense(e.target.getAttribute('data-exp-del'));
+        fillExpenses(); fillDashboard();
       }
     }
-  }, { once:true });
+  },{ once:true });
 }
 
 function fillIngredients(){
   const tbody = el('ingredientsTable').querySelector('tbody');
-  tbody.innerHTML = '';
+  tbody.innerHTML='';
   getIngredients().forEach(i=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = `
+    tr.innerHTML=`
       <td>${i.name}</td>
       <td>${i.unit}</td>
       <td>${fmtMoney(i.costPerUnit)}</td>
@@ -170,9 +159,8 @@ function fillIngredients(){
   });
   tbody.addEventListener('click', e=>{
     if (e.target.matches('button[data-ing-del]')){
-      const id = e.target.getAttribute('data-ing-del');
       if (confirm('Delete ingredient (removes from recipes)?')){
-        removeIngredient(id);
+        removeIngredient(e.target.getAttribute('data-ing-del'));
         fillIngredients();
       }
     }
@@ -180,49 +168,35 @@ function fillIngredients(){
 }
 
 function fillRecipes(){
-  const productSel = document.querySelector('select[name="productId"]');
-  const ingSel = document.querySelector('select[name="ingredientId"]');
-  productSel.innerHTML = '';
-  ingSel.innerHTML = '';
+  const pSel = document.querySelector('select[name="productId"]');
+  const iSel = document.querySelector('select[name="ingredientId"]');
+  pSel.innerHTML=''; iSel.innerHTML='';
   getProducts().forEach(p=>{
-    const opt = document.createElement('option');
-    opt.value = p.id;
-    opt.textContent = p.name;
-    productSel.appendChild(opt);
+    const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; pSel.appendChild(o);
   });
   getIngredients().forEach(i=>{
-    const opt = document.createElement('option');
-    opt.value = i.id;
-    opt.textContent = i.name;
-    ingSel.appendChild(opt);
+    const o=document.createElement('option'); o.value=i.id; o.textContent=i.name; iSel.appendChild(o);
   });
-
   const recipeProdSel = el('recipeProductSelect');
-  recipeProdSel.innerHTML = '';
+  recipeProdSel.innerHTML='';
   getProducts().forEach(p=>{
-    const o = document.createElement('option');
-    o.value = p.id;
-    o.textContent = p.name;
-    recipeProdSel.appendChild(o);
+    const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; recipeProdSel.appendChild(o);
   });
-
   updateRecipeTable();
 }
 
 function updateRecipeTable(){
   const productId = el('recipeProductSelect').value;
   const tbody = el('recipeTable').querySelector('tbody');
-  tbody.innerHTML = '';
+  tbody.innerHTML='';
   const recipe = getRecipes()[productId] || {};
-  const ingLookup = Object.fromEntries(getIngredients().map(i=>[i.id,i]));
-  let total = 0;
+  const ingMap = Object.fromEntries(getIngredients().map(i=>[i.id,i]));
+  let total=0;
   Object.entries(recipe).forEach(([ingId, qty])=>{
-    const ing = ingLookup[ingId];
-    if (!ing) return;
-    const line = ing.costPerUnit * qty;
-    total += line;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
+    const ing = ingMap[ingId]; if (!ing) return;
+    const line = ing.costPerUnit*qty; total+=line;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
       <td>${ing.name}</td>
       <td>${qty}</td>
       <td>${fmtMoney(ing.costPerUnit)}</td>
@@ -231,7 +205,7 @@ function updateRecipeTable(){
     `;
     tbody.appendChild(tr);
   });
-  el('recipeTotalCost').textContent = `Total Recipe Cost: ${fmtMoney(total)} (Overrides base unit cost if any)`;
+  el('recipeTotalCost').textContent = `Total Recipe Cost: ${fmtMoney(total)} (Overrides base cost)`;
   tbody.addEventListener('click', e=>{
     if (e.target.matches('button[data-r-del]')){
       if (confirm('Remove ingredient from recipe?')){
@@ -245,29 +219,30 @@ function updateRecipeTable(){
 function fillDataView(){
   const list = document.getElementById('sysInfo');
   const all = getAll();
-  list.innerHTML = '';
-  const items = [
+  list.innerHTML='';
+  [
     ['Products', all.products.length],
     ['Ingredients', all.ingredients.length],
     ['Recipes with items', Object.values(all.recipes).filter(r=>Object.keys(r).length).length],
     ['Sales', all.sales.length],
     ['Expenses', all.expenses.length],
     ['Created', new Date(all.meta.created).toLocaleString()],
-    ['Last Save', new Date(all.meta.lastSaved||Date.now()).toLocaleString()]
-  ];
-  items.forEach(([k,v])=>{
-    const li = document.createElement('li');
-    li.textContent = `${k}: ${v}`;
+    ['Last Save', new Date(all.meta.lastSaved||Date.now()).toLocaleString()],
+    ['Brand', all.meta.brand||'unknown']
+  ].forEach(([k,v])=>{
+    const li=document.createElement('li');
+    li.textContent=`${k}: ${v}`;
     list.appendChild(li);
   });
 
   const cfg = loadGistConfig();
-  const gistForm = document.getElementById('gistForm');
-  gistForm.token.value = cfg.token || '';
-  gistForm.gistId.value = cfg.gistId || '';
-  gistForm.interval.value = cfg.interval || 0;
-  document.getElementById('gistStatus').textContent =
-    cfg.lastBackup ? `Last backup: ${new Date(cfg.lastBackup).toLocaleString()}` : 'No backups yet.';
+  const form = document.getElementById('gistForm');
+  form.token.value = cfg.token || '';
+  form.gistId.value = cfg.gistId || '';
+  form.interval.value = cfg.interval || 0;
+  el('gistStatus').textContent = cfg.lastBackup
+    ? `Last backup: ${new Date(cfg.lastBackup).toLocaleString()}`
+    : 'No backups yet.';
 }
 
 function ensureDateDefaults(){
@@ -277,84 +252,73 @@ function ensureDateDefaults(){
 }
 
 export function render(){
-  const tplId = `tpl-${currentView}`;
-  const tpl = document.getElementById(tplId);
-  if (!tpl){ viewContainer().innerHTML = '<p>View not found</p>'; return; }
-  viewContainer().innerHTML = '';
+  const tpl = document.getElementById(`tpl-${currentView}`);
+  if (!tpl) {
+    viewContainer().innerHTML='<p>View not found.</p>';
+    return;
+  }
+  viewContainer().innerHTML='';
   viewContainer().appendChild(tpl.content.cloneNode(true));
 
-  if (currentView==='dashboard') {
-    fillDashboard();
-  } else if (currentView==='products') {
-    bindProductForm();
-    fillProducts();
-  } else if (currentView==='sales') {
-    bindSaleForm();
-    fillSales();
-  } else if (currentView==='expenses') {
-    bindExpenseForm();
-    fillExpenses();
-  } else if (currentView==='ingredients') {
-    bindIngredientForm();
-    fillIngredients();
-  } else if (currentView==='recipes') {
-    bindRecipeForm();
-    fillRecipes();
-  } else if (currentView==='data') {
-    bindDataActions();
-    fillDataView();
-  }
+  if (currentView==='dashboard') fillDashboard();
+  else if (currentView==='products') { bindProductForm(); fillProducts(); }
+  else if (currentView==='sales') { bindSaleForm(); fillSales(); }
+  else if (currentView==='expenses') { bindExpenseForm(); fillExpenses(); }
+  else if (currentView==='ingredients') { bindIngredientForm(); fillIngredients(); }
+  else if (currentView==='recipes') { bindRecipeForm(); fillRecipes(); }
+  else if (currentView==='data') { bindDataActions(); fillDataView(); }
+
   ensureDateDefaults();
   updateAuthBar();
 }
 
 function bindProductForm(){
-  const form = document.getElementById('productForm');
-  form.addEventListener('submit', e=>{
+  const f = document.getElementById('productForm');
+  f.addEventListener('submit', e=>{
     e.preventDefault();
-    const fd = new FormData(form);
-    const product = {
-      id: 'p-'+uuid(),
-      name: fd.get('name').trim(),
-      unitCost: parseNum(fd.get('unitCost')),
-      unitPrice: parseNum(fd.get('unitPrice')),
-      active: true
+    const fd=new FormData(f);
+    const prod={
+      id:'p-'+uuid(),
+      name:fd.get('name').trim(),
+      unitCost:parseNum(fd.get('unitCost')),
+      unitPrice:parseNum(fd.get('unitPrice')),
+      active:true
     };
-    if (!product.name) return;
-    addProduct(product);
-    form.reset();
+    if (!prod.name) return;
+    addProduct(prod);
+    f.reset();
     render();
   });
 }
 
 function bindIngredientForm(){
-  const form = document.getElementById('ingredientForm');
-  form.addEventListener('submit', e=>{
+  const f=document.getElementById('ingredientForm');
+  f.addEventListener('submit', e=>{
     e.preventDefault();
-    const fd = new FormData(form);
-    const ing = {
+    const fd=new FormData(f);
+    const ing={
       id:'ing-'+uuid(),
-      name: fd.get('name').trim(),
-      unit: fd.get('unit').trim(),
-      costPerUnit: parseNum(fd.get('costPerUnit'))
+      name:fd.get('name').trim(),
+      unit:fd.get('unit').trim(),
+      costPerUnit:parseNum(fd.get('costPerUnit'))
     };
-    if (!ing.name) return;
+    if(!ing.name) return;
     addIngredient(ing);
-    form.reset();
+    f.reset();
     fillIngredients();
   });
 }
 
 function bindRecipeForm(){
-  const form = document.getElementById('recipeForm');
-  form.addEventListener('submit', e=>{
+  const f=document.getElementById('recipeForm');
+  f.addEventListener('submit', e=>{
     e.preventDefault();
-    const fd = new FormData(form);
-    const productId = fd.get('productId');
-    const ingredientId = fd.get('ingredientId');
-    const qty = parseNum(fd.get('quantity'));
-    if (!productId || !ingredientId || qty <= 0) return;
-    upsertRecipeItem(productId, ingredientId, qty);
+    const fd=new FormData(f);
+    const pid=fd.get('productId');
+    const ing=fd.get('ingredientId');
+    const qty=parseNum(fd.get('quantity'));
+    if (!pid||!ing||qty<=0) return;
+    upsertRecipeItem(pid,ing,qty);
     updateRecipeTable();
   });
   el('recipeProductSelect').addEventListener('change', updateRecipeTable);
@@ -362,192 +326,157 @@ function bindRecipeForm(){
 }
 
 function bindSaleForm(){
-  const sel = document.querySelector('select[name="productId"]');
+  const sel=document.querySelector('select[name="productId"]');
   getProducts().forEach(p=>{
-    const opt = document.createElement('option');
-    opt.value = p.id;
-    opt.textContent = p.name;
-    sel.appendChild(opt);
+    const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o);
   });
-
-  const form = document.getElementById('saleForm');
-  form.addEventListener('submit', e=>{
+  const f=document.getElementById('saleForm');
+  f.addEventListener('submit', e=>{
     e.preventDefault();
-    const fd = new FormData(form);
-    const sale = {
+    const fd=new FormData(f);
+    const sale={
       id:'s-'+uuid(),
-      date: fd.get('date'),
-      productId: fd.get('productId'),
-      quantity: parseInt(fd.get('quantity'))||0,
-      unitPrice: parseNum(fd.get('unitPrice')),
-      discount: parseNum(fd.get('discount')) || 0,
-      notes: fd.get('notes')?.trim()
+      date:fd.get('date'),
+      productId:fd.get('productId'),
+      quantity:parseInt(fd.get('quantity'))||0,
+      unitPrice:parseNum(fd.get('unitPrice')),
+      discount:parseNum(fd.get('discount'))||0,
+      notes:fd.get('notes')?.trim()
     };
-    if (!sale.productId || sale.quantity <= 0) return;
+    if (!sale.productId||sale.quantity<=0) return;
     addSale(sale);
-    form.reset();
-    form.date.value = sale.date;
-    fillSales();
-    fillDashboard();
+    f.reset();
+    f.date.value=sale.date;
+    fillSales(); fillDashboard();
   });
-
-  document.getElementById('filterSalesBtn').addEventListener('click', fillSales);
-  document.getElementById('clearSalesFilterBtn').addEventListener('click', ()=>{
-    document.getElementById('salesFrom').value='';
-    document.getElementById('salesTo').value='';
-    fillSales();
+  el('filterSalesBtn').addEventListener('click', fillSales);
+  el('clearSalesFilterBtn').addEventListener('click', ()=>{
+    el('salesFrom').value=''; el('salesTo').value=''; fillSales();
   });
 }
 
 function bindExpenseForm(){
-  const form = document.getElementById('expenseForm');
-  form.addEventListener('submit', e=>{
+  const f=document.getElementById('expenseForm');
+  f.addEventListener('submit', e=>{
     e.preventDefault();
-    const fd = new FormData(form);
-    const exp = {
+    const fd=new FormData(f);
+    const exp={
       id:'e-'+uuid(),
-      date: fd.get('date'),
-      category: fd.get('category'),
-      amount: parseNum(fd.get('amount')),
-      notes: fd.get('notes')?.trim()
+      date:fd.get('date'),
+      category:fd.get('category'),
+      amount:parseNum(fd.get('amount')),
+      notes:fd.get('notes')?.trim()
     };
-    if (exp.amount <= 0) return;
+    if (exp.amount<=0) return;
     addExpense(exp);
-    form.reset();
-    form.date.value = exp.date;
-    fillExpenses();
-    fillDashboard();
+    f.reset();
+    f.date.value=exp.date;
+    fillExpenses(); fillDashboard();
   });
-
-  document.getElementById('filterExpBtn').addEventListener('click', fillExpenses);
-  document.getElementById('clearExpFilterBtn').addEventListener('click', ()=>{
-    document.getElementById('expFrom').value='';
-    document.getElementById('expTo').value='';
-    fillExpenses();
+  el('filterExpBtn').addEventListener('click', fillExpenses);
+  el('clearExpFilterBtn').addEventListener('click', ()=>{
+    el('expFrom').value=''; el('expTo').value=''; fillExpenses();
   });
 }
 
 function bindDataActions(){
-  document.getElementById('exportJsonBtn').addEventListener('click', ()=>{
-    downloadBlob(exportJson(), 'cakepop-ledger.json');
-  });
-  document.getElementById('exportCsvBtn').addEventListener('click', ()=>{
-    exportSalesCsv();
-  });
-  document.getElementById('exportEncryptedBtn').addEventListener('click', async ()=>{
-    const pw = prompt('Enter password for encryption (do NOT forget):');
-    if (!pw) return;
+  el('exportJsonBtn').addEventListener('click', ()=>downloadBlob(exportJson(),'smallbatch-ledger.json'));
+  el('exportCsvBtn').addEventListener('click', exportSalesCsv);
+  el('exportEncryptedBtn').addEventListener('click', async ()=>{
+    const pw=prompt('Password for encryption (keep safe):');
+    if(!pw) return;
     try {
-      const encObj = await encryptJSON(exportJson(), pw);
-      downloadBlob(JSON.stringify(encObj,null,2), 'cakepop-ledger-encrypted.json');
+      const encObj=await encryptJSON(exportJson(),pw);
+      downloadBlob(JSON.stringify(encObj,null,2),'smallbatch-ledger-encrypted.json');
     } catch(e){
       alert('Encryption failed: '+e.message);
     }
   });
-  document.getElementById('importJsonInput').addEventListener('change', e=>{
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
+  el('importJsonInput').addEventListener('change', e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=()=>{
       try {
-        const obj = JSON.parse(reader.result);
-        if (confirm('Import will overwrite existing data. Continue?')){
-          importJson(obj);
-          render();
-        }
-      } catch(err){
-        alert('Invalid JSON file.');
-      }
+        const obj=JSON.parse(reader.result);
+        if (confirm('Overwrite current data?')){ importJson(obj); render(); }
+      } catch(e){ alert('Invalid JSON'); }
     };
     reader.readAsText(file);
   });
-  document.getElementById('importEncryptedInput').addEventListener('change', e=>{
-    const file = e.target.files[0];
-    if (!file) return;
-    const pw = prompt('Enter password to decrypt:');
-    if (!pw) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
+  el('importEncryptedInput').addEventListener('change', e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const pw=prompt('Password to decrypt:'); if(!pw) return;
+    const reader=new FileReader();
+    reader.onload=async ()=>{
       try {
-        const encObj = JSON.parse(reader.result);
-        const plain = await decryptJSON(encObj, pw);
-        const obj = JSON.parse(plain);
-        if (confirm('Import decrypted data and overwrite?')){
-          importJson(obj);
-          render();
-        }
-      } catch(err){
-        alert('Decryption failed: '+err.message);
-      }
+        const encObj=JSON.parse(reader.result);
+        const plain=await decryptJSON(encObj,pw);
+        const obj=JSON.parse(plain);
+        if(confirm('Overwrite current data?')){ importJson(obj); render(); }
+      } catch(err){ alert('Decryption failed: '+err.message); }
     };
     reader.readAsText(file);
   });
-
-  document.getElementById('resetAllBtn').addEventListener('click', ()=>{
-    if (confirm('This will CLEAR ALL DATA for the current user. Are you sure?')){
-      resetAll();
-      render();
-    }
+  el('resetAllBtn').addEventListener('click', ()=>{
+    if (confirm('Clear ALL data for this user?')){ resetAll(); render(); }
   });
-
-  document.getElementById('exportJsonLink')?.addEventListener('click', (e)=>{
-    e.preventDefault();
-    downloadBlob(exportJson(),'cakepop-ledger.json');
+  el('exportJsonLink')?.addEventListener('click', (evt)=>{
+    evt.preventDefault();
+    downloadBlob(exportJson(),'smallbatch-ledger.json');
   });
 
   const gistForm = document.getElementById('gistForm');
   gistForm.addEventListener('submit', e=>{
     e.preventDefault();
-    const fd = new FormData(gistForm);
-    const cfg = loadGistConfig();
-    cfg.token = fd.get('token').trim();
-    cfg.gistId = fd.get('gistId').trim();
-    cfg.interval = parseInt(fd.get('interval'))||0;
+    const fd=new FormData(gistForm);
+    const cfg=loadGistConfig();
+    cfg.token=fd.get('token').trim();
+    cfg.gistId=fd.get('gistId').trim();
+    cfg.interval=parseInt(fd.get('interval'))||0;
     saveGistConfig(cfg);
     stopAutoBackup();
     startAutoBackup();
-    document.getElementById('gistStatus').textContent = 'Settings saved.';
+    el('gistStatus').textContent='Settings saved.';
   });
-
-  document.getElementById('gistBackupBtn').addEventListener('click', async ()=>{
-    const status = el('gistStatus');
-    status.textContent = 'Backing up...';
+  el('gistBackupBtn').addEventListener('click', async ()=>{
+    const status=el('gistStatus'); status.textContent='Backing up...';
     try {
-      const result = await backupToGist();
-      status.textContent = `Backup success. Gist: ${result.gistId}`;
-    } catch(e){
-      status.textContent = 'Backup error: '+e.message;
-    }
+      const r=await backupToGist();
+      status.textContent=`Backup OK. Gist: ${r.gistId}`;
+    } catch(e){ status.textContent='Backup failed: '+e.message; }
   });
-
-  document.getElementById('gistRestoreBtn').addEventListener('click', async ()=>{
-    const status = el('gistStatus');
-    status.textContent = 'Restoring...';
+  el('gistRestoreBtn').addEventListener('click', async ()=>{
+    const status=el('gistStatus'); status.textContent='Restoring...';
     try {
       await restoreFromGist();
-      status.textContent = 'Restore complete.';
+      status.textContent='Restore complete.';
       render();
-    } catch(e){
-      status.textContent = 'Restore error: '+e.message;
-    }
+    } catch(e){ status.textContent='Restore failed: '+e.message; }
   });
 }
 
 export function initNav(){
   document.querySelectorAll('.nav-btn[data-view]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      switchView(btn.dataset.view);
-    });
+    btn.addEventListener('click', ()=>switchView(btn.dataset.view));
   });
   document.getElementById('year').textContent = new Date().getFullYear();
 }
 
 export function initTheme(){
-  const saved = localStorage.getItem('cakepop-theme');
+  const saved = localStorage.getItem('smallbatch-theme');
   if (saved==='light') document.body.classList.add('light');
+  if (saved==='high-contrast') document.body.classList.add('high-contrast');
   document.getElementById('darkModeBtn').addEventListener('click', ()=>{
     document.body.classList.toggle('light');
-    localStorage.setItem('cakepop-theme', document.body.classList.contains('light')?'light':'dark');
+    document.body.classList.remove('high-contrast');
+    localStorage.setItem('smallbatch-theme',
+      document.body.classList.contains('light')?'light':'dark');
+  });
+  document.getElementById('contrastBtn').addEventListener('click', ()=>{
+    const hc = document.body.classList.toggle('high-contrast');
+    if (hc) document.body.classList.remove('light');
+    localStorage.setItem('smallbatch-theme', hc ? 'high-contrast' :
+      (document.body.classList.contains('light')?'light':'dark'));
   });
 }
 
@@ -557,24 +486,20 @@ function updateAuthBar(){
   const btn = document.getElementById('signOutBtn');
   if (user){
     span.textContent = user.name || user.email;
-    btn.style.display = '';
+    btn.style.display='';
   } else {
-    span.textContent = 'Guest';
-    btn.style.display = 'none';
+    span.textContent='Guest';
+    btn.style.display='none';
   }
 }
 
 export function initAuth(){
-  // Use inline override if present
-  const CLIENT_ID = window.CAKEPOP_GOOGLE_CLIENT_ID || '1086175730023-fjulcqbi6076ed70386j8sbiqlr7ir7f.apps.googleusercontent.com';
+  const CLIENT_ID = window.SMALLBATCH_GOOGLE_CLIENT_ID
+    || '1086175730023-fjulcqbi6076ed70386j8sbiqlr7ir7f.apps.googleusercontent.com';
   initGoogleSignIn(CLIENT_ID);
   document.getElementById('signOutBtn').addEventListener('click', ()=>{
-    if (confirm('Sign out current user? Unsaved UI will reload.')){
-      signOut();
-    }
+    if(confirm('Sign out current user?')) signOut();
   });
   updateAuthBar();
-  window.addEventListener('cakepop-user-change', ()=>{
-    render();
-  });
+  window.addEventListener('smallbatch-user-change', ()=>render());
 }

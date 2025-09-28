@@ -1,88 +1,97 @@
-# Cake Pop Ledger
+# SmallBatch  
+_Sales • Costs • Ingredients_
 
-A lightweight, privacy-first, offline-capable sales & expense tracker for a small cake pop (or similar) business. 100% static (no backend) and works on GitHub Pages. Data is stored locally in the browser (LocalStorage) with export/import tools for backup.
+SmallBatch is a privacy-first, offline-capable ledger for small food businesses to track:
+- Products / Recipes / Ingredients
+- Sales & Discounts
+- Expenses
+- Automatic COGS (with recipe costing)
+- Profit metrics (Revenue, COGS, Gross, Net, Margin, AOV)
+- Encrypted export/import (AES-GCM)
+- GitHub Gist backup (optional)
+- Google Sign-In (per-user isolated local data)
+- PWA offline support
+- Mobile-friendly & accessible (larger touch targets, high-contrast mode)
+
+## Rebrand / Migration (from Cake Pop Ledger)
+If you previously used "Cake Pop Ledger," your data will automatically migrate on first load (it searches legacy keys). Nothing required.
+
+## Tech Stack
+Pure static frontend (HTML/CSS/Vanilla JS). Data stored locally (LocalStorage per user namespace). Optional gist backup. No build system required.
 
 ## Features
+- Products with base cost & price
+- Ingredient catalog (unit + cost per unit)
+- Recipes linking ingredients to products; recipe cost overrides base unit cost
+- Sales logging (quantity, discount, notes)
+- Expense logging (categories)
+- Metrics dashboard + 30-day trend chart
+- Top products
+- Filters by date
+- Export plain JSON + encrypted JSON + sales CSV
+- Google Sign-In (multi-user separation)
+- GitHub Gist backup (manual/auto)
+- Dark mode + High Contrast toggle
 
-- Products / flavors with cost & price
-- Sales logging (qty, discount, notes)
-- Expenses logging with categories
-- Automatic metrics: Revenue, COGS, Gross, Net, Margin, AOV
-- Top flavors + 30-day revenue line chart
-- Date filtering
-- Export JSON & CSV
-- Import JSON (restore or migrate)
-- Dark / Light mode
-- PWA (Install + offline support)
-- Offline fallback page
-- Manual backups (commit exported JSON to /backup)
-
-## Quick Start
-
-1. Clone repo
-2. Enable GitHub Pages (Settings → Pages → Branch = main / root).
-3. Visit the published URL.
-4. Add Products → Log Sales / Expenses → Use Dashboard.
-5. Export JSON regularly (store in `/backup/` or download locally).
-
-## Backup Strategy
-
-- Click Export JSON in Data view.
-- Optionally commit exported files in `backup/`.
-- Keep dated snapshots (e.g. `backup/2025-09-28-ledger.json`).
-
-## Local Development
-
-Open `index.html` directly OR serve with a static server:
+## Folder Structure
 ```
-python -m http.server 8080
+/index.html
+/assets
+  /css/styles.css
+  /js/*.js
+  /icons/icon-source.svg
+/backup
+manifest.webmanifest
+service-worker.js
+offline.html
+README.md
+LICENSE
 ```
-(Needed if you want clean service worker behavior.)
 
-## Icons
+## Setup (GitHub Pages)
+1. Create repo (e.g., smallbatch).
+2. Commit these files to `main`.
+3. Settings → Pages → Deploy from branch (main / root).
+4. Open the published URL. Visit once online so it caches offline.
 
-Edit `assets/icons/icon-source.svg` then run:
-```
-bash scripts/generate-icons.sh
-```
-(Requires ImageMagick.) This updates `icon-192.png` & `icon-512.png`.
+## Google Sign-In
+1. Create OAuth Web Client ID at Google Cloud Console.
+2. Add origin: `https://YOUR_USERNAME.github.io`
+3. Edit `auth.js` or set `window.SMALLBATCH_GOOGLE_CLIENT_ID` in `index.html` (see inline comment).
+4. Reload site; sign in; each account has isolated dataset.
 
-## Security / Privacy Notes
+## GitHub Gist Backup
+Create a GH personal access token (classic) with ONLY `gist` scope:
+- Enter token + optional gist ID in Data → Gist Backup section.
+- Set auto backup interval (minutes) > 0 to enable periodic uploads.
+- Manual backup / restore buttons included.
+WARNING: Token stored in LocalStorage (user risk).
 
-- All data stays on the client until you export it.
-- No analytics, no external calls.
-- Clearing browser storage erases your data. Export regularly.
-- To sync across devices later, you can:
-  - Add a backend (Supabase / Firebase).
-  - Push JSON to a private GitHub Gist (requires OAuth flow or PAT).
-  - Replace LocalStorage with IndexedDB for larger datasets (optional).
+## Encryption
+Encrypted export uses PBKDF2 (150k iterations) + AES-GCM. If you lose the password there is no recovery.
 
-## Roadmap Ideas (Optional Enhancements)
+## Accessibility & Mobile
+- Minimum 44px touch targets
+- Larger base font and increased line-height
+- High Contrast mode for users needing extra clarity
+- Distinct focus outlines
+- Keyboard navigable
 
-- Ingredient-level inventory
-- Batch production planning
-- Tax estimation module
-- Multi-device encrypted sync
-- Role-based multi-user mode
+## Privacy
+All operational data is local unless you explicitly:
+- Export to file
+- Sync via gist
+
+No remote analytics.
+
+## Roadmap Ideas
+- Ingredient stock depletion by sales volume
+- Batch scaling & yield planner
+- Firestore / Supabase sync (token verification)
+- Multi-language
+- Dashboard drilldowns (per product profit timeline)
 
 ## License
+MIT (see LICENSE)
 
-MIT (see [LICENSE](LICENSE)).
-
-## Contributing
-
-PRs welcome for small improvements or optional features. Keep bundle size small (no large frameworks).
-
-## Offline
-
-An `offline.html` is served if the app shell fails to load while offline. First visit must be online to cache assets.
-
-## Accessibility
-
-- Semantic HTML for tables & forms
-- High-contrast dark theme
-- Keyboard focus outlines
-
----
-
-Enjoy your baking business tracking!
+Enjoy using SmallBatch!

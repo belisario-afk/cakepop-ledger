@@ -1,21 +1,26 @@
-// GitHub Gist backup/restore utilities
-// Requires user to supply PAT with "gist" scope.
-// Stored in localStorage (risk accepted by user).
-
 import { exportJson, importJson } from './storage.js';
 
-const GIST_CFG_KEY = 'cakepop-gist-config';
+const GIST_CFG_KEY_NEW = 'smallbatch-gist-config';
+const GIST_CFG_KEY_OLD = 'cakepop-gist-config';
 
 export function loadGistConfig(){
   try {
-    return JSON.parse(localStorage.getItem(GIST_CFG_KEY)) || { token:'', gistId:'', interval:0, lastBackup:0 };
+    let cfg = JSON.parse(localStorage.getItem(GIST_CFG_KEY_NEW));
+    if (!cfg){
+      const legacy = localStorage.getItem(GIST_CFG_KEY_OLD);
+      if (legacy) {
+        cfg = JSON.parse(legacy);
+        localStorage.setItem(GIST_CFG_KEY_NEW, JSON.stringify(cfg));
+      }
+    }
+    return cfg || { token:'', gistId:'', interval:0, lastBackup:0 };
   } catch {
     return { token:'', gistId:'', interval:0, lastBackup:0 };
   }
 }
 
 export function saveGistConfig(cfg){
-  localStorage.setItem(GIST_CFG_KEY, JSON.stringify(cfg));
+  localStorage.setItem(GIST_CFG_KEY_NEW, JSON.stringify(cfg));
 }
 
 async function apiRequest(token, method, url, body){
@@ -29,7 +34,7 @@ async function apiRequest(token, method, url, body){
   });
   if (!res.ok){
     const text = await res.text();
-    throw new Error(`GitHub API error ${res.status}: ${text}`);
+    throw new Error(`GitHub API ${res.status}: ${text}`);
   }
   return res.json();
 }
@@ -38,15 +43,12 @@ export async function backupToGist(){
   const cfg = loadGistConfig();
   if (!cfg.token) throw new Error('Token missing');
   const content = exportJson();
-  const filename = 'cakepop-ledger.json';
+  const filename = 'smallbatch-ledger.json';
   if (!cfg.gistId){
-    // Create
     const body = {
-      description: 'Cake Pop Ledger Backup',
+      description: 'SmallBatch Backup',
       public: false,
-      files: {
-        [filename]: { content }
-      }
+      files: { [filename]: { content } }
     };
     const data = await apiRequest(cfg.token, 'POST', 'https://api.github.com/gists', body);
     cfg.gistId = data.id;
@@ -54,14 +56,8 @@ export async function backupToGist(){
     saveGistConfig(cfg);
     return { created:true, gistId:cfg.gistId };
   } else {
-    // Update
-    const body = {
-      files: {
-        [filename]: { content }
-      }
-    };
-    const url = `https://api.github.com/gists/${cfg.gistId}`;
-    await apiRequest(cfg.token, 'PATCH', url, body);
+    const body = { files: { [filename]: { content } } };
+    await apiRequest(cfg.token, 'PATCH', `https://api.github.com/gists/${cfg.gistId}`, body);
     cfg.lastBackup = Date.now();
     saveGistConfig(cfg);
     return { created:false, gistId:cfg.gistId };
@@ -71,10 +67,9 @@ export async function backupToGist(){
 export async function restoreFromGist(){
   const cfg = loadGistConfig();
   if (!cfg.token || !cfg.gistId) throw new Error('Token or gistId missing');
-  const url = `https://api.github.com/gists/${cfg.gistId}`;
-  const data = await apiRequest(cfg.token, 'GET', url);
-  const file = data.files['cakepop-ledger.json'];
-  if (!file) throw new Error('File cakepop-ledger.json not found in gist');
+  const data = await apiRequest(cfg.token, 'GET', `https://api.github.com/gists/${cfg.gistId}`);
+  const file = data.files['smallbatch-ledger.json'] || data.files['cakepop-ledger.json'];
+  if (!file) throw new Error('Backup file not found in gist');
   importJson(JSON.parse(file.content));
   return true;
 }

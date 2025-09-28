@@ -1,9 +1,15 @@
 {
+  "version": 2,
   "products": [
-    { "id":"p-vanilla","name":"Vanilla","unitCost":0.4,"unitPrice":2.5,"active":true },
-    { "id":"p-chocolate","name":"Chocolate","unitCost":0.45,"unitPrice":2.75,"active":true }
+    { "id":"p-sample1","name":"Classic Vanilla","unitCost":0.4,"unitPrice":2.5,"active":true },
+    { "id":"p-sample2","name":"Rich Chocolate","unitCost":0.48,"unitPrice":2.8,"active":true }
   ],
+  "ingredients": [
+    { "id":"ing-sugar","name":"Sugar","unit":"g","costPerUnit":0.002 },
+    { "id":"ing-flour","name":"Flour","unit":"g","costPerUnit":0.0015 }
+  ],
+  "recipes": {},
   "sales": [],
   "expenses": [],
-  "meta": { "created": 0, "lastSaved": 0 }
+  "meta": { "created": 0, "lastSaved": 0, "brand":"smallbatch" }
 }

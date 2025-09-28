@@ -7,20 +7,17 @@ export const getExpenses = () => getAll().expenses;
 export const getIngredients = () => getAll().ingredients;
 export const getRecipes = () => getAll().recipes;
 
-// Compute recipe-based unit cost if recipe exists
 export const productRecipeCost = (productId) => {
-  const recipes = getRecipes();
-  const recipe = recipes[productId];
-  if (!recipe) return null;
-  const ingredients = getIngredients();
-  const ingMap = Object.fromEntries(ingredients.map(i=>[i.id,i]));
-  let total = 0;
-  Object.entries(recipe).forEach(([ingId, qty])=>{
+  const r = getRecipes()[productId];
+  if (!r) return null;
+  const ingMap = Object.fromEntries(getIngredients().map(i=>[i.id,i]));
+  let sum = 0;
+  for (const [ingId, qty] of Object.entries(r)){
     const ing = ingMap[ingId];
-    if (!ing) return;
-    total += parseNum(ing.costPerUnit) * parseNum(qty);
-  });
-  return total;
+    if (!ing) continue;
+    sum += parseNum(ing.costPerUnit) * parseNum(qty);
+  }
+  return sum;
 };
 
 export const productBaseCost = (productId) => {
@@ -29,27 +26,31 @@ export const productBaseCost = (productId) => {
 };
 
 export const productCost = (productId) => {
-  const rCost = productRecipeCost(productId);
-  if (rCost !== null) return rCost;
-  return productBaseCost(productId);
+  const rc = productRecipeCost(productId);
+  return rc !== null ? rc : productBaseCost(productId);
 };
 
 export const saleTotal = sale => {
   const gross = sale.unitPrice * sale.quantity;
-  const net = gross - (sale.discount || 0);
-  return net;
+  return gross - (sale.discount || 0);
 };
 
 export const saleCost = sale => productCost(sale.productId) * sale.quantity;
 
-export const computeMetrics = (filteredSales, filteredExpenses) => {
-  const revenue = filteredSales.reduce((a,s)=>a + saleTotal(s),0);
-  const cogs = filteredSales.reduce((a,s)=>a + saleCost(s),0);
-  const gross = revenue - cogs;
-  const expenses = filteredExpenses.reduce((a,e)=>a + parseNum(e.amount),0);
-  const net = gross - expenses;
-  const orders = filteredSales.length;
-  const aov = orders ? revenue / orders : 0;
-  const margin = revenue ? (gross / revenue)*100 : 0;
-  return { revenue, cogs, gross, expenses, net, aov, margin };
+export const computeMetrics = (sales, expenses) => {
+  const rev = sales.reduce((a,s)=>a + saleTotal(s),0);
+  const cogs = sales.reduce((a,s)=>a + saleCost(s),0);
+  const gross = rev - cogs;
+  const expSum = expenses.reduce((a,e)=>a + parseNum(e.amount),0);
+  const net = gross - expSum;
+  const orders = sales.length;
+  return {
+    revenue: rev,
+    cogs,
+    gross,
+    expenses: expSum,
+    net,
+    aov: orders ? rev/orders : 0,
+    margin: rev ? (gross/rev)*100 : 0
+  };
 };

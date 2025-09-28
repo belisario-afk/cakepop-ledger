@@ -1,9 +1,8 @@
 # Code of Conduct
 
-Be respectful, constructive, and kind in all interactions.
-
+Be respectful, constructive, and inclusive.
 - No harassment or discrimination.
-- Keep discussions focused on improving the project.
-- Violations may result in removal of contributions.
+- Keep contributions focused on improving SmallBatch.
+- Violations may lead to revocation of contribution privileges.
 
-Inspired by Contributor Covenant (lightweight form).
+Adapted loosely from the Contributor Covenant.

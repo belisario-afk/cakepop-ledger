@@ -16,5 +16,5 @@ export function exportSalesCsv(){
     `"${(s.notes||'').replace(/"/g,'""')}"`
   ]);
   const csv = [header.join(','), ...rows.map(r=>r.join(','))].join('\n');
-  downloadBlob(csv, 'sales.csv', 'text/csv');
+  downloadBlob(csv, 'smallbatch-sales.csv', 'text/csv');
 }

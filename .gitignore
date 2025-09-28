@@ -1,13 +1,8 @@
-# Node / tooling (in case you later add build scripts)
 node_modules/
 dist/
-.tmp/
 .DS_Store
-.env
-.env.*
+.env*
 npm-debug.log*
 yarn-error.log*
-# Backups / exports
 backup/*.json
-# OS
 Thumbs.db

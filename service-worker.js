@@ -1,6 +1,5 @@
-/* Updated Service Worker (added new assets) */
-const VERSION = '1.1.0';
-const CACHE = `cakepop-ledger-${VERSION}`;
+const VERSION = 'smallbatch-1.2.0';
+const CACHE = VERSION;
 const ASSETS = [
   './',
   './index.html',
@@ -30,10 +29,11 @@ self.addEventListener('install', e=>{
 
 self.addEventListener('activate', e=>{
   e.waitUntil(
-    caches.keys().then(keys=>Promise.all(keys
-      .filter(k=>k.startsWith('cakepop-ledger-') && k!==CACHE)
-      .map(k=>caches.delete(k))
-    ))
+    caches.keys().then(keys=>Promise.all(
+      keys.filter(k=>k.startsWith('smallbatch-') && k!==CACHE).map(k=>caches.delete(k))
+    )).then(()=>caches.keys().then(keys=>Promise.all(
+      keys.filter(k=>k.startsWith('cakepop-ledger-')).map(k=>caches.delete(k))
+    )))
   );
   self.clients.claim();
 });
@@ -41,7 +41,6 @@ self.addEventListener('activate', e=>{
 self.addEventListener('fetch', e=>{
   const req = e.request;
   if (req.method !== 'GET') return;
-
   if (req.mode === 'navigate' || (req.headers.get('accept')||'').includes('text/html')){
     e.respondWith((async ()=>{
       try {
@@ -50,13 +49,12 @@ self.addEventListener('fetch', e=>{
         cache.put(req, fresh.clone());
         return fresh;
       } catch {
-        const cacheMatch = await caches.match(req);
-        return cacheMatch || await caches.match('./offline.html');
+        const cached = await caches.match(req);
+        return cached || await caches.match('./offline.html');
       }
     })());
     return;
   }
-
   if (new URL(req.url).origin === location.origin){
     e.respondWith((async ()=>{
       const cached = await caches.match(req);
@@ -67,7 +65,7 @@ self.addEventListener('fetch', e=>{
         cache.put(req, res.clone());
         return res;
       } catch {
-        return new Response('Offline', { status: 503 });
+        return new Response('Offline', { status:503 });
       }
     })());
   }

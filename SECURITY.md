@@ -1,25 +1,19 @@
 # Security Policy
 
-Because this is a static client-only app with no backend, primary risks are:
-- Malicious modification of code (supply chain) if dependencies are added later.
-- User losing data due to LocalStorage clearing.
+Because SmallBatch is a static, client-side app:
+- No server stores your data.
+- All secrets (GitHub token) that you enter are stored locally—treat them carefully.
 
-## Reporting a Vulnerability
+## Potential Risks
+- LocalStorage cleared = data loss (export often).
+- Stolen device or malicious extensions could read LocalStorage (including gist token).
+- Google ID token isn’t server-verified here (not strong auth, only user namespace separation).
 
-Open a PRIVATE channel first (do not create a public issue if it reveals an exploit).  
-Email: (replace with your email) or open a draft security advisory in GitHub.
+## Recommendations
+- Export backups regularly (plain or encrypted).
+- Use encrypted export if storing backups in cloud drives.
+- Use a token with only `gist` scope.
+- Consider a backend if multi-user trust or validation matters.
 
-## Data Security
-
-All data resides in the browser only until exported. No transmission is performed.
-
-## Recommended User Practices
-
-- Export backups regularly.
-- Avoid using public/shared computers.
-- Keep browser updated.
-
-## Future Hardening
-
-- Optionally add data encryption (password-based) prior to export.
-- Content Security Policy (meta tag already added).
+## Reporting
+Open a private channel (email or draft security advisory) before disclosing issues publicly.

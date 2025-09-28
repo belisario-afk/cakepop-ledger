@@ -16,7 +16,7 @@ export function dailyRevenueSeries(n=30){
   salesLastNDays(n).forEach(s=>{
     map.set(s.date, (map.get(s.date)||0) + saleTotal(s));
   });
-  return Array.from(map.entries()); // [date, revenue]
+  return Array.from(map.entries());
 }
 
 export function topProducts(limit=5){
