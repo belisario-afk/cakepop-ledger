@@ -1,11 +1,11 @@
-/* Core UI orchestrator */
+/* Quick Wins Integrated UI Controller */
 import {
   fmtMoney, uuid, parseNum, betweenDates, todayISO, downloadBlob
 } from './utils.js';
 import {
   addProduct, removeProduct, addSale, removeSale, addExpense, removeExpense,
   getAll, importJson, exportJson, resetAll,
-  addIngredient, removeIngredient, upsertRecipeItem, removeRecipeItem
+  addIngredient, removeIngredient, upsertRecipeItem, removeRecipeItem, persist
 } from './storage.js';
 import {
   getProducts, getSales, getExpenses, computeMetrics, saleTotal,
@@ -18,10 +18,32 @@ import { encryptJSON, decryptJSON } from './crypto.js';
 import { backupToGist, restoreFromGist, loadGistConfig, saveGistConfig, startAutoBackup, stopAutoBackup } from './gist-backup.js';
 import { getActiveUser, signOut, initGoogleSignIn } from './auth.js';
 import { ensureSettings, getSettings, saveSettings } from './user-settings.js';
-import { applyTheme, previewTheme, generatePattern, resetThemeToDefault, updatePreviewCard, mergePresetIntoSettings, tempApplyPreset, exportThemeOnly, importThemeObject } from './theme.js';
+import {
+  applyTheme, previewTheme, generatePattern, resetThemeToDefault,
+  updatePreviewCard, mergePresetIntoSettings, tempApplyPreset,
+  exportThemeOnly, importThemeObject
+} from './theme.js';
 import { initParallax } from './parallax.js';
 
 let currentView='dashboard';
+let recentProducts = [];
+let saveTickerInterval=null;
+let lastSaveTime = Date.now();
+let uiPrefs = loadUIPrefs();
+
+const SAVE_STATUS_ID='saveStatus';
+const BACKUP_REMINDER_KEY='smallbatch-last-export-banner-dismiss';
+
+function loadUIPrefs(){
+  try { return JSON.parse(localStorage.getItem('smallbatch-ui-prefs')) || {
+    lockDate:false,
+    reduceVibrancy:false,
+    ambient:false
+  }; } catch { return {lockDate:false,reduceVibrancy:false,ambient:false}; }
+}
+function saveUIPrefs(){
+  localStorage.setItem('smallbatch-ui-prefs', JSON.stringify(uiPrefs));
+}
 
 const viewContainer = () => document.getElementById('viewContainer');
 
@@ -32,7 +54,7 @@ export function switchView(view){
   render();
 }
 
-/* ---- Rendering ---- */
+/* ---------- CORE RENDER ---------- */
 export function render(){
   const tpl = document.getElementById(`tpl-${currentView}`);
   if (!tpl){
@@ -54,62 +76,67 @@ export function render(){
   ensureDateDefaults();
   updateAuthBar();
   initParallax();
+  updateBackupBanner();
+  initSaveTicker();
 }
 
+/* ---------- DASHBOARD ---------- */
 function fillDashboard(){
-  const sales = getSales();
-  const expenses = getExpenses();
-  const m = computeMetrics(sales, expenses);
-  setText('m-revenue', fmtMoney(m.revenue));
-  setText('m-cogs', fmtMoney(m.cogs));
-  setText('m-gross', fmtMoney(m.gross));
-  setText('m-net', fmtMoney(m.net));
-  setText('m-margin', m.margin.toFixed(1)+'%');
-  setText('m-aov', fmtMoney(m.aov));
+  const sales=getSales();
+  const expenses=getExpenses();
+  const m=computeMetrics(sales,expenses);
+  setText('m-revenue',fmtMoney(m.revenue));
+  setText('m-cogs',fmtMoney(m.cogs));
+  setText('m-gross',fmtMoney(m.gross));
+  setText('m-net',fmtMoney(m.net));
+  setText('m-margin',m.margin.toFixed(1)+'%');
+  setText('m-aov',fmtMoney(m.aov));
   lineChart(document.getElementById('chartRevenue'), dailyRevenueSeries(30));
-  const ul = document.getElementById('topFlavors');
+  const ul=document.getElementById('topFlavors');
   if (ul){
     ul.innerHTML='';
     topProducts().forEach(p=>{
       const li=document.createElement('li');
-      li.textContent = `${p.name} — ${p.qty} pcs`;
+      li.textContent=`${p.name} — ${p.qty} pcs`;
       ul.appendChild(li);
     });
   }
 }
 
+/* ---------- PRODUCTS ---------- */
 function fillProducts(){
-  const tbody = document.querySelector('#productsTable tbody');
+  const tbody=document.querySelector('#productsTable tbody');
   if (!tbody) return;
   tbody.innerHTML='';
   getProducts().forEach(p=>{
-    const baseCost = productBaseCost(p.id);
-    const recipeCost = productRecipeCost(p.id);
-    const effective = productCost(p.id);
-    const margin = p.unitPrice ? ((p.unitPrice - effective)/p.unitPrice*100).toFixed(1) : '0';
+    const baseCost=productBaseCost(p.id);
+    const recipeCost=productRecipeCost(p.id);
+    const effective=productCost(p.id);
+    const margin=p.unitPrice? ((p.unitPrice - effective)/p.unitPrice*100).toFixed(1):'0';
     const tr=document.createElement('tr');
     tr.innerHTML=`
       <td>${p.name}</td>
       <td>${fmtMoney(baseCost)}</td>
-      <td>${recipeCost!==null? fmtMoney(recipeCost): '-'}</td>
+      <td>${recipeCost!==null?fmtMoney(recipeCost):'-'}</td>
       <td>${fmtMoney(p.unitPrice)}</td>
       <td>${margin}%</td>
-      <td><button data-del="${p.id}">Del</button></td>
-    `;
+      <td><button data-del="${p.id}">Del</button></td>`;
     tbody.appendChild(tr);
   });
-  tbody.addEventListener('click', e=>{
-    if (e.target.matches('button[data-del]')){
-      if (confirm('Delete product and its recipe?')){
+  tbody.addEventListener('click',e=>{
+    if(e.target.matches('button[data-del]')){
+      if(confirm('Delete product and its recipe?')){
         removeProduct(e.target.getAttribute('data-del'));
+        markSaved();
         fillProducts(); fillDashboard();
       }
     }
-  }, { once:true });
+  },{once:true});
 }
 
+/* ---------- INGREDIENTS ---------- */
 function fillIngredients(){
-  const tbody = document.querySelector('#ingredientsTable tbody');
+  const tbody=document.querySelector('#ingredientsTable tbody');
   if (!tbody) return;
   tbody.innerHTML='';
   getIngredients().forEach(i=>{
@@ -118,29 +145,30 @@ function fillIngredients(){
       <td>${i.name}</td>
       <td>${i.unit}</td>
       <td>${fmtMoney(i.costPerUnit)}</td>
-      <td><button data-ing-del="${i.id}">Del</button></td>
-    `;
+      <td><button data-ing-del="${i.id}">Del</button></td>`;
     tbody.appendChild(tr);
   });
-  tbody.addEventListener('click', e=>{
-    if (e.target.matches('button[data-ing-del]')){
-      if (confirm('Delete ingredient (will remove from recipes)?')){
+  tbody.addEventListener('click',e=>{
+    if(e.target.matches('button[data-ing-del]')){
+      if(confirm('Delete ingredient (removes from recipes)?')){
         removeIngredient(e.target.getAttribute('data-ing-del'));
+        markSaved();
         fillIngredients();
       }
     }
-  }, { once:true });
+  },{once:true});
 }
 
+/* ---------- RECIPES ---------- */
 function fillRecipes(){
-  const pSel = document.querySelector('select[name="productId"]');
-  const iSel = document.querySelector('select[name="ingredientId"]');
-  const prodSel = document.getElementById('recipeProductSelect');
-  if (!pSel || !iSel || !prodSel) return;
+  const pSel=document.querySelector('select[name="productId"]');
+  const iSel=document.querySelector('select[name="ingredientId"]');
+  const prodSel=document.getElementById('recipeProductSelect');
+  if(!pSel||!iSel||!prodSel) return;
   pSel.innerHTML=''; iSel.innerHTML=''; prodSel.innerHTML='';
   getProducts().forEach(p=>{
-    const o1=document.createElement('option'); o1.value=p.id; o1.textContent=p.name; pSel.appendChild(o1);
-    const o2=document.createElement('option'); o2.value=p.id; o2.textContent=p.name; prodSel.appendChild(o2);
+    const o=document.createElement('option'); o.value=p.id;o.textContent=p.name; pSel.appendChild(o);
+    const o2=document.createElement('option'); o2.value=p.id;o2.textContent=p.name; prodSel.appendChild(o2);
   });
   getIngredients().forEach(i=>{
     const o=document.createElement('option'); o.value=i.id; o.textContent=i.name; iSel.appendChild(o);
@@ -149,79 +177,80 @@ function fillRecipes(){
 }
 
 function updateRecipeTable(){
-  const productId = document.getElementById('recipeProductSelect')?.value;
-  if (!productId) return;
-  const tbody = document.querySelector('#recipeTable tbody');
-  if (!tbody) return;
+  const productId=document.getElementById('recipeProductSelect')?.value;
+  if(!productId) return;
+  const tbody=document.querySelector('#recipeTable tbody');
+  if(!tbody) return;
   tbody.innerHTML='';
-  const recipe = getRecipes()[productId] || {};
-  const ingMap = Object.fromEntries(getIngredients().map(i=>[i.id,i]));
+  const recipe=getRecipes()[productId]||{};
+  const ingMap=Object.fromEntries(getIngredients().map(i=>[i.id,i]));
   let total=0;
-  Object.entries(recipe).forEach(([ingId, qty])=>{
+  Object.entries(recipe).forEach(([ingId,qty])=>{
     const ing=ingMap[ingId]; if(!ing) return;
-    const line=ing.costPerUnit*qty;
-    total+=line;
+    const line=ing.costPerUnit*qty; total+=line;
     const tr=document.createElement('tr');
     tr.innerHTML=`
       <td>${ing.name}</td>
       <td>${qty}</td>
       <td>${fmtMoney(ing.costPerUnit)}</td>
       <td>${fmtMoney(line)}</td>
-      <td><button data-r-del="${ingId}">x</button></td>
-    `;
+      <td><button data-r-del="${ingId}">x</button></td>`;
     tbody.appendChild(tr);
   });
-  setText('recipeTotalCost', `Total Recipe Cost: ${fmtMoney(total)} (Overrides base cost)`);
-  tbody.addEventListener('click', e=>{
-    if (e.target.matches('button[data-r-del]')){
-      if (confirm('Remove ingredient from recipe?')){
-        removeRecipeItem(productId, e.target.getAttribute('data-r-del'));
+  setText('recipeTotalCost',`Total Recipe Cost: ${fmtMoney(total)} (Overrides base cost)`);
+  tbody.addEventListener('click',e=>{
+    if(e.target.matches('button[data-r-del]')){
+      if(confirm('Remove ingredient from recipe?')){
+        removeRecipeItem(productId,e.target.getAttribute('data-r-del'));
+        markSaved();
         updateRecipeTable();
       }
     }
-  }, { once:true });
+  },{once:true});
 }
 
+/* ---------- SALES ---------- */
 function fillSales(){
-  const from = document.getElementById('salesFrom')?.value;
-  const to = document.getElementById('salesTo')?.value;
-  const tbody = document.querySelector('#salesTable tbody');
-  if (!tbody) return;
+  const from=document.getElementById('salesFrom')?.value;
+  const to=document.getElementById('salesTo')?.value;
+  const tbody=document.querySelector('#salesTable tbody');
+  if(!tbody) return;
   tbody.innerHTML='';
-  const prodLookup = Object.fromEntries(getProducts().map(p=>[p.id,p]));
-  const filtered = getSales().filter(s=>betweenDates(s.date, from, to));
-  setText('salesCount', `${filtered.length} rows`);
+  const prodLookup=Object.fromEntries(getProducts().map(p=>[p.id,p]));
+  const filtered=getSales().filter(s=>betweenDates(s.date,from,to));
+  setText('salesCount',`${filtered.length} rows`);
   filtered.sort((a,b)=>b.date.localeCompare(a.date)).forEach(s=>{
     const tr=document.createElement('tr');
     tr.innerHTML=`
       <td>${s.date}</td>
-      <td>${prodLookup[s.productId]?.name || s.productId}</td>
+      <td>${prodLookup[s.productId]?.name||s.productId}</td>
       <td>${s.quantity}</td>
       <td>${fmtMoney(s.unitPrice)}</td>
       <td>${fmtMoney(s.discount||0)}</td>
       <td>${fmtMoney(saleTotal(s))}</td>
       <td>${(s.notes||'').replace(/</g,'&lt;')}</td>
-      <td><button data-sale-del="${s.id}">x</button></td>
-    `;
+      <td><button data-sale-del="${s.id}">x</button></td>`;
     tbody.appendChild(tr);
   });
-  tbody.addEventListener('click', e=>{
-    if (e.target.matches('button[data-sale-del]')){
-      if (confirm('Delete sale?')){
+  tbody.addEventListener('click',e=>{
+    if(e.target.matches('button[data-sale-del]')){
+      if(confirm('Delete sale?')){
         removeSale(e.target.getAttribute('data-sale-del'));
+        markSaved();
         fillSales(); fillDashboard();
       }
     }
-  }, { once:true });
+  },{once:true});
 }
 
+/* ---------- EXPENSES ---------- */
 function fillExpenses(){
-  const from = document.getElementById('expFrom')?.value;
-  const to = document.getElementById('expTo')?.value;
-  const tbody = document.querySelector('#expensesTable tbody');
-  if (!tbody) return;
+  const from=document.getElementById('expFrom')?.value;
+  const to=document.getElementById('expTo')?.value;
+  const tbody=document.querySelector('#expensesTable tbody');
+  if(!tbody) return;
   tbody.innerHTML='';
-  const filtered = getExpenses().filter(e=>betweenDates(e.date, from, to));
+  const filtered=getExpenses().filter(e=>betweenDates(e.date,from,to));
   setText('expenseTotal', fmtMoney(filtered.reduce((a,e)=>a+parseNum(e.amount),0)));
   filtered.sort((a,b)=>b.date.localeCompare(a.date)).forEach(e=>{
     const tr=document.createElement('tr');
@@ -230,55 +259,56 @@ function fillExpenses(){
       <td>${e.category}</td>
       <td>${fmtMoney(e.amount)}</td>
       <td>${(e.notes||'').replace(/</g,'&lt;')}</td>
-      <td><button data-exp-del="${e.id}">x</button></td>
-    `;
+      <td><button data-exp-del="${e.id}">x</button></td>`;
     tbody.appendChild(tr);
   });
-  tbody.addEventListener('click', e=>{
-    if (e.target.matches('button[data-exp-del]')){
-      if (confirm('Delete expense?')){
+  tbody.addEventListener('click',e=>{
+    if(e.target.matches('button[data-exp-del]')){
+      if(confirm('Delete expense?')){
         removeExpense(e.target.getAttribute('data-exp-del'));
+        markSaved();
         fillExpenses(); fillDashboard();
       }
     }
-  }, { once:true });
+  },{once:true});
 }
 
+/* ---------- DATA VIEW ---------- */
 function fillDataView(){
   const list=document.getElementById('sysInfo');
   if(!list) return;
   const all=getAll();
   list.innerHTML='';
   [
-    ['Products', all.products.length],
-    ['Ingredients', all.ingredients.length],
-    ['Recipes with items', Object.values(all.recipes).filter(r=>Object.keys(r).length).length],
-    ['Sales', all.sales.length],
-    ['Expenses', all.expenses.length],
-    ['Created', new Date(all.meta.created).toLocaleString()],
-    ['Last Save', new Date(all.meta.lastSaved||Date.now()).toLocaleString()]
+    ['Products',all.products.length],
+    ['Ingredients',all.ingredients.length],
+    ['Recipes with items',Object.values(all.recipes).filter(r=>Object.keys(r).length).length],
+    ['Sales',all.sales.length],
+    ['Expenses',all.expenses.length],
+    ['Created',new Date(all.meta.created).toLocaleString()],
+    ['Last Save',new Date(all.meta.lastSaved||Date.now()).toLocaleString()]
   ].forEach(([k,v])=>{
-    const li=document.createElement('li'); li.textContent=`${k}: ${v}`; list.appendChild(li);
+    const li=document.createElement('li');
+    li.textContent=`${k}: ${v}`;
+    list.appendChild(li);
   });
 
   const cfg=loadGistConfig();
   const form=document.getElementById('gistForm');
   if (form){
-    form.token.value = cfg.token || '';
-    form.gistId.value = cfg.gistId || '';
-    form.interval.value = cfg.interval || 0;
+    form.token.value=cfg.token||'';
+    form.gistId.value=cfg.gistId||'';
+    form.interval.value=cfg.interval||0;
   }
-  const status=document.getElementById('gistStatus');
-  if (status){
-    status.textContent = cfg.lastBackup ? `Last backup: ${new Date(cfg.lastBackup).toLocaleString()}` : 'No backups yet.';
-  }
+  const st=document.getElementById('gistStatus');
+  if (st) st.textContent = cfg.lastBackup ? `Last backup: ${new Date(cfg.lastBackup).toLocaleString()}` : 'No backups yet.';
 }
 
-/* ---- Binding Forms ---- */
+/* ---------- FORMS ---------- */
 function bindProductForm(){
   const f=document.getElementById('productForm');
-  if (!f) return;
-  f.addEventListener('submit', e=>{
+  if(!f) return;
+  f.addEventListener('submit',e=>{
     e.preventDefault();
     const fd=new FormData(f);
     const p={
@@ -288,8 +318,9 @@ function bindProductForm(){
       unitPrice:parseNum(fd.get('unitPrice')),
       active:true
     };
-    if (!p.name) return;
+    if(!p.name) return;
     addProduct(p);
+    markSaved();
     f.reset();
     render();
   });
@@ -297,8 +328,8 @@ function bindProductForm(){
 
 function bindIngredientForm(){
   const f=document.getElementById('ingredientForm');
-  if (!f) return;
-  f.addEventListener('submit', e=>{
+  if(!f) return;
+  f.addEventListener('submit',e=>{
     e.preventDefault();
     const fd=new FormData(f);
     const ing={
@@ -309,6 +340,7 @@ function bindIngredientForm(){
     };
     if(!ing.name) return;
     addIngredient(ing);
+    markSaved();
     f.reset();
     fillIngredients();
   });
@@ -316,15 +348,16 @@ function bindIngredientForm(){
 
 function bindRecipeForm(){
   const f=document.getElementById('recipeForm');
-  if (!f) return;
-  f.addEventListener('submit', e=>{
+  if(!f) return;
+  f.addEventListener('submit',e=>{
     e.preventDefault();
     const fd=new FormData(f);
     const pid=fd.get('productId');
     const ing=fd.get('ingredientId');
     const qty=parseNum(fd.get('quantity'));
-    if (!pid||!ing||qty<=0) return;
+    if(!pid||!ing||qty<=0) return;
     upsertRecipeItem(pid,ing,qty);
+    markSaved();
     updateRecipeTable();
   });
   document.getElementById('recipeProductSelect')?.addEventListener('change', updateRecipeTable);
@@ -333,15 +366,17 @@ function bindRecipeForm(){
 
 function bindSaleForm(){
   const sel=document.querySelector('select[name="productId"]');
-  if (sel){
+  if(sel){
     sel.innerHTML='';
     getProducts().forEach(p=>{
-      const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o);
+      const o=document.createElement('option');
+      o.value=p.id; o.textContent=p.name;
+      sel.appendChild(o);
     });
   }
   const f=document.getElementById('saleForm');
-  if (!f) return;
-  f.addEventListener('submit', e=>{
+  if(!f) return;
+  f.addEventListener('submit',e=>{
     e.preventDefault();
     const fd=new FormData(f);
     const sale={
@@ -353,8 +388,10 @@ function bindSaleForm(){
       discount:parseNum(fd.get('discount'))||0,
       notes:fd.get('notes')?.trim()
     };
-    if (!sale.productId || sale.quantity<=0) return;
+    if(!sale.productId||sale.quantity<=0) return;
     addSale(sale);
+    trackRecentProduct(sale.productId);
+    markSaved();
     f.reset();
     f.date.value=sale.date;
     fillSales(); fillDashboard();
@@ -369,8 +406,8 @@ function bindSaleForm(){
 
 function bindExpenseForm(){
   const f=document.getElementById('expenseForm');
-  if (!f) return;
-  f.addEventListener('submit', e=>{
+  if(!f) return;
+  f.addEventListener('submit',e=>{
     e.preventDefault();
     const fd=new FormData(f);
     const exp={
@@ -380,8 +417,9 @@ function bindExpenseForm(){
       amount:parseNum(fd.get('amount')),
       notes:fd.get('notes')?.trim()
     };
-    if (exp.amount<=0) return;
+    if(exp.amount<=0) return;
     addExpense(exp);
+    markSaved();
     f.reset();
     f.date.value=exp.date;
     fillExpenses(); fillDashboard();
@@ -395,14 +433,18 @@ function bindExpenseForm(){
 }
 
 function bindDataActions(){
-  document.getElementById('exportJsonBtn')?.addEventListener('click', ()=>downloadBlob(exportJson(),'smallbatch-ledger.json'));
+  document.getElementById('exportJsonBtn')?.addEventListener('click', ()=>{
+    downloadBlob(exportJson(),'smallbatch-ledger.json');
+    noteExportTime();
+  });
   document.getElementById('exportCsvBtn')?.addEventListener('click', exportSalesCsv);
   document.getElementById('exportEncryptedBtn')?.addEventListener('click', async ()=>{
-    const pw=prompt('Password for encryption (store safely):');
+    const pw=prompt('Password for encryption:');
     if(!pw) return;
     try {
       const encObj=await encryptJSON(exportJson(),pw);
       downloadBlob(JSON.stringify(encObj,null,2),'smallbatch-ledger-encrypted.json');
+      noteExportTime();
     } catch(e){ alert('Encryption failed: '+e.message); }
   });
   document.getElementById('importJsonInput')?.addEventListener('change', e=>{
@@ -411,30 +453,48 @@ function bindDataActions(){
     reader.onload=()=>{
       try {
         const obj=JSON.parse(reader.result);
-        if (confirm('Overwrite current data?')){ importJson(obj); render(); }
-      } catch(err){ alert('Invalid JSON'); }
+        if(confirm('Overwrite current data?')){
+          importJson(obj);
+          markSaved();
+          render();
+        }
+      }catch(err){ alert('Invalid JSON'); }
     };
     reader.readAsText(file);
   });
   document.getElementById('importEncryptedInput')?.addEventListener('change', e=>{
     const file=e.target.files[0]; if(!file) return;
-    const pw=prompt('Enter decryption password:'); if(!pw) return;
+    const pw=prompt('Password to decrypt:'); if(!pw) return;
     const reader=new FileReader();
     reader.onload=async ()=>{
       try {
-        const encObj=JSON.parse(reader.result);
-        const plain=await decryptJSON(encObj,pw);
-        const obj=JSON.parse(plain);
-        if(confirm('Overwrite current data?')){ importJson(obj); render(); }
-      } catch(err){ alert('Decryption failed: '+err.message); }
+        const obj=JSON.parse(reader.result);
+        const plain=await decryptJSON(obj,pw);
+        const parsed=JSON.parse(plain);
+        if(confirm('Overwrite with decrypted data?')){
+          importJson(parsed);
+          markSaved();
+          render();
+        }
+      }catch(err){ alert('Decryption failed: '+err.message); }
     };
     reader.readAsText(file);
   });
   document.getElementById('resetAllBtn')?.addEventListener('click', ()=>{
-    if (confirm('Clear ALL data for this user?')){ resetAll(); render(); }
+    if(confirm('Clear ALL data for this user?')){
+      resetAll();
+      markSaved();
+      render();
+    }
   });
   document.getElementById('exportJsonLink')?.addEventListener('click', e=>{
-    e.preventDefault(); downloadBlob(exportJson(),'smallbatch-ledger.json');
+    e.preventDefault();
+    downloadBlob(exportJson(),'smallbatch-ledger.json');
+    noteExportTime();
+  });
+  document.getElementById('backupNowLink')?.addEventListener('click', e=>{
+    e.preventDefault();
+    updateBackupBanner(true);
   });
 
   const gistForm=document.getElementById('gistForm');
@@ -449,216 +509,526 @@ function bindDataActions(){
     stopAutoBackup(); startAutoBackup();
     setText('gistStatus','Settings saved.');
   });
+
   document.getElementById('gistBackupBtn')?.addEventListener('click', async ()=>{
     const st=document.getElementById('gistStatus');
     st.textContent='Backing up...';
-    try { const r=await backupToGist(); st.textContent='Backup OK. Gist: '+r.gistId; }
-    catch(e){ st.textContent='Backup failed: '+e.message; }
+    try{
+      const r=await backupToGist();
+      st.textContent='Backup OK. Gist: '+r.gistId;
+    }catch(e){
+      st.textContent='Backup failed: '+e.message;
+    }
   });
   document.getElementById('gistRestoreBtn')?.addEventListener('click', async ()=>{
     const st=document.getElementById('gistStatus');
     st.textContent='Restoring...';
-    try { await restoreFromGist(); st.textContent='Restore complete.'; render(); }
-    catch(e){ st.textContent='Restore failed: '+e.message; }
+    try{
+      await restoreFromGist();
+      st.textContent='Restore complete.';
+      markSaved();
+      render();
+    }catch(e){
+      st.textContent='Restore failed: '+e.message;
+    }
   });
 }
 
-/* SETTINGS */
+/* ---------- SETTINGS (Theme & Profile + Quick Win Toggles) ---------- */
 function bindSettings(){
-  const settings = ensureSettings();
+  const settings=ensureSettings();
   applyTheme(settings);
   const profileForm=document.getElementById('storeProfileForm');
-  if (profileForm){
+  if(profileForm){
     profileForm.storeName.value=settings.storeName||'';
     profileForm.tagline.value=settings.tagline||'';
     profileForm.logoEmoji.value=settings.logoEmoji||'🧁';
     profileForm.addEventListener('submit', e=>{
       e.preventDefault();
       const fd=new FormData(profileForm);
-      settings.storeName = fd.get('storeName').trim() || 'SmallBatch';
-      settings.tagline = fd.get('tagline').trim() || 'Sales • Costs • Ingredients';
-      settings.logoEmoji = fd.get('logoEmoji').trim() || '🧁';
-      const file = fd.get('logoFile');
-      if (file && file.size){
+      settings.storeName=fd.get('storeName').trim()||'SmallBatch';
+      settings.tagline=fd.get('tagline').trim()||'Sales • Costs • Ingredients';
+      settings.logoEmoji=fd.get('logoEmoji').trim()||'🧁';
+      const file=fd.get('logoFile');
+      if(file && file.size){
         const reader=new FileReader();
         reader.onload=()=>{
           settings.logoDataUrl=reader.result;
           saveSettings(settings);
           applyTheme(settings);
+          markSaved();
           alert('Profile saved.');
         };
         reader.readAsDataURL(file);
       } else {
         saveSettings(settings);
         applyTheme(settings);
+        markSaved();
         alert('Profile saved.');
       }
     });
   }
+
+  // Theme form + new toggles appended to existing UI
   const tForm=document.getElementById('themeForm');
-  if (!tForm) return;
-  tForm.primaryColor.value=settings.colors.primary;
-  tForm.accentColor.value=settings.colors.accent;
-  tForm.bgColor.value=settings.colors.bg;
-  tForm.elevColor.value=settings.colors.elev;
-  tForm.mode.value=settings.mode||'system';
-  tForm.glass.value=settings.glass||'off';
-  tForm.bgStyle.value=settings.background.mode;
-  tForm.gradientValue.value=settings.background.gradient||'';
-  tForm.imageUrl.value=settings.background.imageUrl||'';
-  tForm.patternSeed.value=settings.background.patternSeed||'';
-  tForm.font.value=settings.font||'system';
-  tForm.preset.value=settings.preset||'';
-
-  const collect=()=>({
-    preset:tForm.preset.value,
-    primaryColor:tForm.primaryColor.value,
-    accentColor:tForm.accentColor.value,
-    bgColor:tForm.bgColor.value,
-    elevColor:tForm.elevColor.value,
-    mode:tForm.mode.value,
-    glass:tForm.glass.value,
-    font:tForm.font.value,
-    bgStyle:tForm.bgStyle.value,
-    gradientValue:tForm.gradientValue.value,
-    imageUrl:tForm.imageUrl.value,
-    patternSeed:tForm.patternSeed.value
-  });
-
-  document.getElementById('applyPresetBtn')?.addEventListener('click', ()=>{
-    const name=tForm.preset.value;
-    if (!name){ alert('Select a preset.'); return; }
-    mergePresetIntoSettings(name, settings);
-    saveSettings(settings);
-    applyTheme(settings);
-    updatePreviewCard(settings);
-    // refresh form
-    tForm.primaryColor.value=settings.colors.primary;
-    tForm.accentColor.value=settings.colors.accent;
-    tForm.bgColor.value=settings.colors.bg;
-    tForm.elevColor.value=settings.colors.elev;
-    tForm.bgStyle.value=settings.background.mode;
-    tForm.gradientValue.value=settings.background.gradient;
-    tForm.imageUrl.value=settings.background.imageUrl;
-    tForm.patternSeed.value=settings.background.patternSeed;
-    tForm.font.value=settings.font;
-    alert('Preset applied. Adjust and Save Theme to persist changes.');
-  });
-
-  document.getElementById('previewPresetBtn')?.addEventListener('click', ()=>{
-    const name=tForm.preset.value;
-    if (!name){ alert('Select a preset.'); return; }
-    tempApplyPreset(name);
-    alert('Preset previewed (not saved).');
-  });
-
-  document.getElementById('previewThemeBtn')?.addEventListener('click', ()=>{
-    previewTheme(collect());
-    alert('Preview applied (not saved).');
-  });
-
-  document.getElementById('genPatternBtn')?.addEventListener('click', ()=>{
-    const vals=collect();
-    const dataUrl=generatePattern(vals.patternSeed||Date.now().toString(), vals.primaryColor, vals.accentColor);
-    settings.background.patternDataUrl=dataUrl;
-    const previewClone=structuredClone(settings);
-    previewClone.background.mode='pattern';
-    previewClone.background.patternDataUrl=dataUrl;
-    updatePreviewCard(previewClone);
-    applyTheme(previewClone);
-    alert('Pattern generated (Preview). Save Theme to persist.');
-  });
-
-  tForm.addEventListener('submit', e=>{
-    e.preventDefault();
-    const vals=collect();
-    settings.colors.primary=vals.primaryColor;
-    settings.colors.accent=vals.accentColor;
-    settings.colors.bg=vals.bgColor;
-    settings.colors.elev=vals.elevColor;
-    settings.mode=vals.mode;
-    settings.glass=vals.glass;
-    settings.font=vals.font;
-    settings.preset=vals.preset||'custom';
-    settings.background.mode=vals.bgStyle;
-    settings.background.gradient=vals.gradientValue;
-    settings.background.imageUrl=vals.imageUrl;
-    settings.background.patternSeed=vals.patternSeed;
-    if (vals.bgStyle==='pattern'){
-      settings.background.patternDataUrl = settings.background.patternDataUrl ||
-        generatePattern(vals.patternSeed||Date.now().toString(), vals.primaryColor, vals.accentColor);
-    } else {
-      settings.background.patternDataUrl='';
+  if(tForm){
+    // Insert new toggle row for reduce vibrancy & ambient if not present
+    if(!tForm.querySelector('[name="reduceVibrancy"]')){
+      const wrap=document.createElement('div');
+      wrap.className='inline-buttons';
+      wrap.innerHTML=`
+        <label style="display:flex;align-items:center;gap:.4rem;font-size:.63rem;">
+          <input type="checkbox" name="reduceVibrancy"> Reduce Vibrancy
+        </label>
+        <label style="display:flex;align-items:center;gap:.4rem;font-size:.63rem;">
+          <input type="checkbox" name="ambientMotion"> Ambient Animation
+        </label>`;
+      tForm.appendChild(wrap);
     }
-    saveSettings(settings);
-    applyTheme(settings);
-    updatePreviewCard(settings);
-    alert('Theme saved.');
-  });
+    tForm.querySelector('[name="reduceVibrancy"]').checked = !!uiPrefs.reduceVibrancy;
+    tForm.querySelector('[name="ambientMotion"]').checked = !!uiPrefs.ambient;
 
-  document.getElementById('resetThemeBtn')?.addEventListener('click', ()=>{
-    if (confirm('Reset theme & profile to defaults?')){
-      resetThemeToDefault();
-      render();
-    }
-  });
+    // Extend existing preset list with new Quick Win presets if not there
+    const presetSel=tForm.preset;
+    addPresetOption(presetSel,'ivory','Minimal Ivory');
+    addPresetOption(presetSel,'stealth','Stealth Slate');
 
-  document.getElementById('exportThemeBtn')?.addEventListener('click', ()=>{
-    const json=exportThemeOnly();
-    downloadBlob(json,'smallbatch-theme.json');
-  });
+    // previously implemented binding logic preserved (short form)
+    tForm.addEventListener('change', e=>{
+      if(e.target.name==='reduceVibrancy'){
+        uiPrefs.reduceVibrancy=e.target.checked;
+        applyVibrancy();
+        saveUIPrefs();
+      } else if(e.target.name==='ambientMotion'){
+        uiPrefs.ambient=e.target.checked;
+        applyAmbient();
+        saveUIPrefs();
+      }
+    });
 
-  document.getElementById('importThemeInput')?.addEventListener('change', e=>{
-    const file=e.target.files[0]; if(!file) return;
-    const reader=new FileReader();
-    reader.onload=()=>{
-      try {
-        const obj=JSON.parse(reader.result);
-        importThemeObject(obj);
-        tForm.primaryColor.value=obj.colors.primary;
-        tForm.accentColor.value=obj.colors.accent;
-        tForm.bgColor.value=obj.colors.bg;
-        tForm.elevColor.value=obj.colors.elev;
-        tForm.bgStyle.value=obj.background.mode;
-        tForm.gradientValue.value=obj.background.gradient;
-        tForm.imageUrl.value=obj.background.imageUrl;
-        tForm.patternSeed.value=obj.background.patternSeed;
-        tForm.font.value=obj.font||'system';
-        tForm.preset.value=obj.preset||'';
-        alert('Theme imported.');
-      } catch(err){ alert('Invalid theme file.'); }
-    };
-    reader.readAsText(file);
-  });
-
-  updatePreviewCard(settings);
+    // Hook into existing preview & save - we re-run contrast check on save
+    const originalSubmit = tForm.onsubmit;
+    tForm.addEventListener('submit', ()=>{
+      setTimeout(()=>runContrastCheck(), 20);
+    }, {capture:true});
+  }
+  applyVibrancy();
+  applyAmbient();
+  runContrastCheck();
+  addThemePresetHandlers();
+  updatePreviewCard(getSettings());
+  attachThemeExportImport();
 }
 
-/* Helpers */
+/* Add new preset options safely */
+function addPresetOption(selectEl, value, label){
+  if(!selectEl) return;
+  if([...selectEl.options].some(o=>o.value===value)) return;
+  const opt=document.createElement('option');
+  opt.value=value;
+  opt.textContent=label;
+  selectEl.appendChild(opt);
+}
+
+/* ---------- Quick Modal + Keyboard Shortcuts ---------- */
+function initQuickModal(){
+  const btn=document.getElementById('quickAddBtn');
+  const modal=document.getElementById('quickModal');
+  if(!btn||!modal) return;
+  btn.addEventListener('click',()=>openQuickModal('sale'));
+  modal.addEventListener('click',e=>{
+    if(e.target.hasAttribute('data-close')) closeQuickModal();
+  });
+  modal.querySelector('.qm-close')?.addEventListener('click', closeQuickModal);
+  modal.querySelectorAll('.qm-tab').forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      modal.querySelectorAll('.qm-tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      const sel=tab.getAttribute('data-tab');
+      modal.querySelectorAll('.qm-form').forEach(frm=>{
+        frm.hidden = frm.getAttribute('data-pane')!==sel;
+      });
+      document.getElementById(sel==='sale'?'quickSaleForm':'quickExpenseForm')
+        ?.querySelector('input,select')?.focus();
+    });
+  });
+
+  // Populate sale product select
+  const saleSel=modal.querySelector('#quickSaleForm select[name="productId"]');
+  if(saleSel){
+    saleSel.innerHTML='';
+    getProducts().forEach(p=>{
+      const o=document.createElement('option');
+      o.value=p.id; o.textContent=p.name;
+      saleSel.appendChild(o);
+    });
+  }
+
+  // Prefill dates
+  modal.querySelectorAll('input[type="date"]').forEach(d=>{
+    if(!d.value) d.value=todayISO();
+  });
+
+  // Lock date preference
+  const lockChk = modal.querySelector('#quickSaleForm input[name="lockDate"]');
+  lockChk.checked = !!uiPrefs.lockDate;
+  lockChk.addEventListener('change',()=>{
+    uiPrefs.lockDate = lockChk.checked;
+    saveUIPrefs();
+  });
+
+  // Recent product chips
+  rebuildRecentChips();
+
+  // Sale submit
+  modal.querySelector('#quickSaleForm')?.addEventListener('submit', e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const date=fd.get('date');
+    const sale={
+      id:'s-'+uuid(),
+      date,
+      productId:fd.get('productId'),
+      quantity:parseInt(fd.get('quantity'))||0,
+      unitPrice:parseNum(fd.get('unitPrice')),
+      discount:parseNum(fd.get('discount'))||0,
+      notes:fd.get('notes')?.trim()
+    };
+    if(!sale.productId || sale.quantity<=0) return;
+    addSale(sale);
+    trackRecentProduct(sale.productId);
+    markSaved();
+    if(!uiPrefs.lockDate) e.target.reset();
+    if(uiPrefs.lockDate) e.target.date.value = date;
+    e.target.productId.focus();
+    rebuildRecentChips();
+    if(currentView==='dashboard') fillDashboard();
+    if(currentView==='sales') fillSales();
+  });
+
+  // Expense submit
+  modal.querySelector('#quickExpenseForm')?.addEventListener('submit', e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const exp={
+      id:'e-'+uuid(),
+      date:fd.get('date'),
+      category:fd.get('category'),
+      amount:parseNum(fd.get('amount')),
+      notes:fd.get('notes')?.trim()
+    };
+    if(exp.amount<=0) return;
+    addExpense(exp);
+    markSaved();
+    e.target.reset();
+    e.target.date.value = todayISO();
+    if(currentView==='dashboard') fillDashboard();
+    if(currentView==='expenses') fillExpenses();
+  });
+}
+
+function openQuickModal(tab='sale'){
+  const modal=document.getElementById('quickModal');
+  if(!modal) return;
+  modal.hidden=false;
+  document.body.style.overflow='hidden';
+  modal.querySelectorAll('.qm-tab').forEach(t=>{
+    const active = t.getAttribute('data-tab')===tab;
+    t.classList.toggle('active',active);
+  });
+  modal.querySelectorAll('.qm-form').forEach(frm=>{
+    frm.hidden = frm.getAttribute('data-pane')!==tab;
+  });
+  modal.querySelector(`[data-pane="${tab}"]`)?.querySelector('input,select')?.focus();
+}
+
+function closeQuickModal(){
+  const modal=document.getElementById('quickModal');
+  if(!modal) return;
+  modal.hidden=true;
+  document.body.style.overflow='';
+}
+
+function rebuildRecentChips(){
+  const cont=document.getElementById('recentProducts');
+  if(!cont) return;
+  cont.innerHTML='';
+  if(!recentProducts.length) return;
+  const prodLookup=Object.fromEntries(getProducts().map(p=>[p.id,p.name]));
+  recentProducts.slice(0,3).forEach(pid=>{
+    const chip=document.createElement('div');
+    chip.className='recent-chip';
+    chip.textContent=prodLookup[pid]||pid;
+    chip.title='Use '+(prodLookup[pid]||pid);
+    chip.addEventListener('click',()=>{
+      const sel=document.querySelector('#quickSaleForm select[name="productId"]');
+      if(sel){
+        sel.value=pid;
+        sel.dispatchEvent(new Event('change'));
+      }
+    });
+    cont.appendChild(chip);
+  });
+}
+
+function trackRecentProduct(pid){
+  recentProducts = [pid, ...recentProducts.filter(p=>p!==pid)];
+  if(recentProducts.length>5) recentProducts=recentProducts.slice(0,5);
+  saveRecentProducts();
+  rebuildRecentChips();
+}
+function saveRecentProducts(){
+  localStorage.setItem('smallbatch-recent-products', JSON.stringify(recentProducts));
+}
+function loadRecentProducts(){
+  try { recentProducts = JSON.parse(localStorage.getItem('smallbatch-recent-products'))||[]; }
+  catch { recentProducts=[]; }
+}
+
+/* ---------- SETTINGS / THEME HELPERS ---------- */
+function addThemePresetHandlers(){
+  const tForm=document.getElementById('themeForm');
+  if(!tForm) return;
+  const applyPresetBtn=document.getElementById('applyPresetBtn');
+  const previewPresetBtn=document.getElementById('previewPresetBtn');
+  if(applyPresetBtn){
+    applyPresetBtn.addEventListener('click',()=>{
+      const name=tForm.preset.value;
+      if(!name) return alert('Select a preset first.');
+      const settings=getSettings();
+      if(name==='ivory'){
+        mergePresetIntoSettings('default', settings);
+        Object.assign(settings.colors,{
+          primary:'#b89b4c',
+          accent:'#d5bb6e',
+          bg:'#f8f6f1',
+          elev:'#ffffff'
+        });
+        settings.mode='light';
+        settings.glass='off';
+        settings.preset='ivory';
+      } else if(name==='stealth'){
+        mergePresetIntoSettings('noir', settings);
+        Object.assign(settings.colors,{
+          primary:'#3d3e42',
+          accent:'#5a5b61',
+          bg:'#0b0c0d',
+          elev:'#141517'
+        });
+        settings.preset='stealth';
+      } else {
+        mergePresetIntoSettings(name, settings);
+      }
+      saveSettings(settings);
+      applyTheme(settings);
+      updatePreviewCard(settings);
+      markSaved();
+      alert('Preset applied. Adjust & Save Theme for further tweaks.');
+    });
+  }
+  if(previewPresetBtn){
+    previewPresetBtn.addEventListener('click',()=>{
+      const name=tForm.preset.value;
+      if(!name) return alert('Select a preset.');
+      if(name==='ivory'){
+        const settings=structuredClone(getSettings());
+        Object.assign(settings.colors,{
+          primary:'#b89b4c',
+          accent:'#d5bb6e',
+          bg:'#f8f6f1',
+          elev:'#ffffff'
+        });
+        settings.mode='light';
+        applyTheme(settings); updatePreviewCard(settings);
+      } else if(name==='stealth'){
+        const settings=structuredClone(getSettings());
+        Object.assign(settings.colors,{
+          primary:'#3d3e42',
+          accent:'#5a5b61',
+          bg:'#0b0c0d',
+          elev:'#141517'
+        });
+        applyTheme(settings); updatePreviewCard(settings);
+      } else {
+        tempApplyPreset(name);
+      }
+      alert('Preset previewed (not saved).');
+    });
+  }
+}
+
+function runContrastCheck(){
+  const settings=getSettings();
+  const ratio = contrastRatio(settings.colors.primary, settings.colors.bg);
+  const existing=document.getElementById('contrastWarn');
+  if(ratio<4){
+    if(!existing){
+      const div=document.createElement('div');
+      div.id='contrastWarn';
+      div.className='notice-banner';
+      div.innerHTML=`<span>Low contrast (ratio ${ratio.toFixed(2)}). Consider darker background or lighter accent.</span>
+                     <button type="button" id="dismissContrastWarn">Dismiss</button>`;
+      document.getElementById('bannerArea')?.appendChild(div);
+      div.querySelector('#dismissContrastWarn')?.addEventListener('click',()=>div.remove());
+    }
+  } else if(existing){
+    existing.remove();
+  }
+}
+
+/* Contrast computation (WCAG approximate) */
+function contrastRatio(hex1, hex2){
+  function lum(hex){
+    const h=hex.replace('#','');
+    const full=h.length===3? h.split('').map(c=>c+c).join(''):h;
+    const n=parseInt(full,16);
+    const r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+    const sr=[r,g,b].map(v=>{
+      v/=255;
+      return v<=0.03928? v/12.92 : Math.pow((v+0.055)/1.055,2.4);
+    });
+    return 0.2126*sr[0]+0.7152*sr[1]+0.0722*sr[2];
+  }
+  const L1=lum(hex1)+0.05;
+  const L2=lum(hex2)+0.05;
+  return L1>L2? L1/L2 : L2/L1;
+}
+
+/* Export/Import Theme Only (already integrated) */
+function attachThemeExportImport(){
+  const exportBtn=document.getElementById('exportThemeBtn');
+  if(exportBtn){
+    exportBtn.addEventListener('click',()=>{
+      downloadBlob(exportThemeOnly(),'smallbatch-theme.json');
+    });
+  }
+  const importInput=document.getElementById('importThemeInput');
+  if(importInput){
+    importInput.addEventListener('change', e=>{
+      const file=e.target.files[0]; if(!file) return;
+      const reader=new FileReader();
+      reader.onload=()=>{
+        try{
+          const obj=JSON.parse(reader.result);
+            importThemeObject(obj);
+            markSaved();
+            alert('Theme imported & applied.');
+        }catch(err){ alert('Invalid theme file'); }
+      };
+      reader.readAsText(file);
+    });
+  }
+}
+
+/* Vibrancy & Ambient toggles */
+function applyVibrancy(){
+  document.body.classList.toggle('reduce-vibrancy', !!uiPrefs.reduceVibrancy);
+}
+function applyAmbient(){
+  document.body.classList.toggle('ambient-active', !!uiPrefs.ambient);
+}
+
+/* ---------- RECENT / SAVE STATUS / BACKUP REMINDER ---------- */
+function markSaved(){
+  lastSaveTime=Date.now();
+  updateSaveIndicator();
+  persist();
+}
+function initSaveTicker(){
+  if(saveTickerInterval) return;
+  saveTickerInterval=setInterval(updateSaveIndicator, 1000);
+  updateSaveIndicator();
+}
+function updateSaveIndicator(){
+  const el=document.getElementById(SAVE_STATUS_ID);
+  if(!el) return;
+  const secs=Math.floor((Date.now()-lastSaveTime)/1000);
+  el.textContent = `Saved • ${secs}s`;
+}
+
+function noteExportTime(){
+  const all=getAll();
+  all.meta.lastExport = Date.now();
+  persist();
+  localStorage.setItem(BACKUP_REMINDER_KEY,'dismissed-'+all.meta.lastExport);
+  updateBackupBanner(true);
+}
+
+function updateBackupBanner(force=false){
+  const bannerArea=document.getElementById('bannerArea');
+  if(!bannerArea) return;
+  const all=getAll();
+  const lastExport=all.meta.lastExport||0;
+  const DAYS=14;
+  const due = Date.now() - lastExport > DAYS*86400000;
+  const dismissedStamp=localStorage.getItem(BACKUP_REMINDER_KEY)||'';
+  bannerArea.querySelector('.notice-banner.backup')?.remove();
+  if((due || force) && !dismissedStamp.startsWith('dismissed-'+lastExport)){
+    const div=document.createElement('div');
+    div.className='notice-banner backup';
+    div.innerHTML=`<span><strong>Reminder:</strong> You have not exported in over ${DAYS} days. Export JSON or Encrypted to protect your data.</span>
+                   <button type="button" id="dismissBackup">Dismiss</button>`;
+    bannerArea.appendChild(div);
+    div.querySelector('#dismissBackup')?.addEventListener('click',()=>{
+      localStorage.setItem(BACKUP_REMINDER_KEY,'dismissed-'+(all.meta.lastExport||0));
+      div.remove();
+    });
+  }
+}
+
+/* ---------- QUICK WINS KEYBOARD SHORTCUTS ---------- */
+function initShortcuts(){
+  window.addEventListener('keydown',e=>{
+    if(e.altKey){
+      switch(e.key.toLowerCase()){
+        case 'd': e.preventDefault(); switchView('dashboard'); break;
+        case 's': e.preventDefault(); openQuickModal('sale'); break;
+        case 'e': e.preventDefault(); openQuickModal('expense'); break;
+        case 'p': e.preventDefault(); switchView('products'); break;
+        case 'r': e.preventDefault(); switchView('recipes'); break;
+        case 'i': e.preventDefault(); switchView('ingredients'); break;
+        case 'x': e.preventDefault(); switchView('expenses'); break;
+      }
+    }
+    if(e.key==='Escape'){
+      const modal=document.getElementById('quickModal');
+      if(modal && !modal.hidden){
+        closeQuickModal();
+      }
+    }
+  });
+}
+
+/* ---------- SETTINGS EXTENDED (already partly in bindSettings) ---------- */
+
+/* ---------- COMMON HELPERS ---------- */
 function ensureDateDefaults(){
   document.querySelectorAll('input[type="date"]').forEach(inp=>{
-    if (!inp.value) inp.value=todayISO();
+    if(!inp.value) inp.value=todayISO();
   });
 }
 
 function setText(id,val){
   const el=document.getElementById(id);
-  if (el) el.textContent=val;
+  if(el) el.textContent=val;
 }
 
-/* ---- Auth / Theme / Nav initialization ---- */
+/* ---------- NAV / THEME / AUTH INITIALIZATION ---------- */
 export function initNav(){
   document.querySelectorAll('.nav-btn[data-view]').forEach(btn=>{
     btn.addEventListener('click', ()=>switchView(btn.dataset.view));
   });
   const year=document.getElementById('year');
-  if (year) year.textContent=new Date().getFullYear();
+  if(year) year.textContent=new Date().getFullYear();
+  loadRecentProducts();
+  initQuickModal();
+  initShortcuts();
 }
 
 export function initTheme(){
-  const saved = localStorage.getItem('smallbatch-theme');
-  if (saved==='light') document.body.classList.add('light');
-  if (saved==='high-contrast') document.body.classList.add('high-contrast');
+  const saved=localStorage.getItem('smallbatch-theme');
+  if(saved==='light') document.body.classList.add('light');
+  if(saved==='high-contrast') document.body.classList.add('high-contrast');
   document.getElementById('darkModeBtn')?.addEventListener('click', ()=>{
     document.body.classList.toggle('light');
     document.body.classList.remove('high-contrast');
@@ -667,18 +1037,20 @@ export function initTheme(){
   });
   document.getElementById('contrastBtn')?.addEventListener('click', ()=>{
     const hc=document.body.classList.toggle('high-contrast');
-    if (hc) document.body.classList.remove('light');
-    localStorage.setItem('smallbatch-theme', hc?'high-contrast':
+    if(hc) document.body.classList.remove('light');
+    localStorage.setItem('smallbatch-theme',hc?'high-contrast':
       (document.body.classList.contains('light')?'light':'dark'));
   });
+  applyVibrancy();
+  applyAmbient();
 }
 
 function updateAuthBar(){
   const user=getActiveUser();
   const span=document.getElementById('authUser');
   const btn=document.getElementById('signOutBtn');
-  if (!span||!btn) return;
-  if (user){
+  if(!span||!btn) return;
+  if(user){
     span.textContent=user.name||user.email;
     btn.style.display='';
   } else {
@@ -692,9 +1064,12 @@ export function initAuth(){
     || '1086175730023-fjulcqbi6076ed70386j8sbiqlr7ir7f.apps.googleusercontent.com';
   initGoogleSignIn(CLIENT_ID);
   document.getElementById('signOutBtn')?.addEventListener('click', ()=>{
-    if (confirm('Sign out current user?')) signOut();
+    if(confirm('Sign out current user?')) signOut();
   });
   window.addEventListener('smallbatch-user-change', ()=>{
     ensureSettings(); applyTheme(getSettings()); render();
   });
 }
+
+/* Exported helper for quick modal open from other modules (if needed) */
+export { openQuickModal, closeQuickModal };
