@@ -180,7 +180,6 @@ function fillIngredients(){
 }
 
 function fillRecipes(){
-  // populate selects
   const productSel = document.querySelector('select[name="productId"]');
   const ingSel = document.querySelector('select[name="ingredientId"]');
   productSel.innerHTML = '';
@@ -262,7 +261,6 @@ function fillDataView(){
     list.appendChild(li);
   });
 
-  // Prefill gist form
   const cfg = loadGistConfig();
   const gistForm = document.getElementById('gistForm');
   gistForm.token.value = cfg.token || '';
@@ -497,7 +495,6 @@ function bindDataActions(){
     downloadBlob(exportJson(),'cakepop-ledger.json');
   });
 
-  // Gist form
   const gistForm = document.getElementById('gistForm');
   gistForm.addEventListener('submit', e=>{
     e.preventDefault();
@@ -568,8 +565,8 @@ function updateAuthBar(){
 }
 
 export function initAuth(){
-  // Provide your Google OAuth Web client ID here:
-  const CLIENT_ID = 'REPLACE_WITH_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+  // Use inline override if present
+  const CLIENT_ID = window.CAKEPOP_GOOGLE_CLIENT_ID || '1086175730023-fjulcqbi6076ed70386j8sbiqlr7ir7f.apps.googleusercontent.com';
   initGoogleSignIn(CLIENT_ID);
   document.getElementById('signOutBtn').addEventListener('click', ()=>{
     if (confirm('Sign out current user? Unsaved UI will reload.')){
@@ -578,7 +575,6 @@ export function initAuth(){
   });
   updateAuthBar();
   window.addEventListener('cakepop-user-change', ()=>{
-    // reload view to pull new namespace data
     render();
   });
 }
