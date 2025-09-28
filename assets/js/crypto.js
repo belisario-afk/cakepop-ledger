@@ -1,49 +1,42 @@
-// AES-GCM encryption for SmallBatch exports
-const PBKDF2_ITER = 150000;
-const KEY_LENGTH = 256;
-const ENC_VERSION = 1;
+const ITER = 150000;
+const KEY_LEN = 256;
 
 async function deriveKey(password, salt){
-  const enc = new TextEncoder();
-  const baseKey = await crypto.subtle.importKey(
-    'raw', enc.encode(password), { name:'PBKDF2' }, false, ['deriveKey']
+  const base = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(password),
+    {name:'PBKDF2'}, false, ['deriveKey']
   );
   return crypto.subtle.deriveKey(
-    { name:'PBKDF2', salt, iterations:PBKDF2_ITER, hash:'SHA-256' },
-    baseKey,
-    { name:'AES-GCM', length:KEY_LENGTH },
-    false,
-    ['encrypt','decrypt']
+    {name:'PBKDF2', salt, iterations:ITER, hash:'SHA-256'},
+    base, {name:'AES-GCM', length:KEY_LEN}, false, ['encrypt','decrypt']
   );
 }
 
-export async function encryptJSON(jsonString, password){
+export async function encryptJSON(plain, password){
   const enc = new TextEncoder();
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveKey(password, salt);
-  const cipherBuf = await crypto.subtle.encrypt(
-    { name:'AES-GCM', iv }, key, enc.encode(jsonString)
-  );
+  const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, enc.encode(plain));
   return {
     type:'smallbatch-encrypted',
-    v: ENC_VERSION,
-    alg:'AES-GCM',
+    v:1,
     kdf:'PBKDF2-SHA256',
-    iter: PBKDF2_ITER,
+    iter:ITER,
+    alg:'AES-GCM',
     salt: btoa(String.fromCharCode(...salt)),
     iv: btoa(String.fromCharCode(...iv)),
-    data: btoa(String.fromCharCode(...new Uint8Array(cipherBuf)))
+    data: btoa(String.fromCharCode(...new Uint8Array(ct)))
   };
 }
 
-export async function decryptJSON(encryptedObj, password){
-  if (encryptedObj.type !== 'smallbatch-encrypted' && encryptedObj.type !== 'cakepop-encrypted')
+export async function decryptJSON(obj, password){
+  if (!obj || (obj.type!=='smallbatch-encrypted' && obj.type!=='cakepop-encrypted'))
     throw new Error('Invalid encrypted file');
-  const salt = Uint8Array.from(atob(encryptedObj.salt), c=>c.charCodeAt(0));
-  const iv = Uint8Array.from(atob(encryptedObj.iv), c=>c.charCodeAt(0));
-  const data = Uint8Array.from(atob(encryptedObj.data), c=>c.charCodeAt(0));
+  const salt = Uint8Array.from(atob(obj.salt),c=>c.charCodeAt(0));
+  const iv = Uint8Array.from(atob(obj.iv),c=>c.charCodeAt(0));
+  const data = Uint8Array.from(atob(obj.data),c=>c.charCodeAt(0));
   const key = await deriveKey(password, salt);
-  const plainBuf = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, data);
-  return new TextDecoder().decode(plainBuf);
+  const pt = await crypto.subtle.decrypt({name:'AES-GCM',iv}, key, data);
+  return new TextDecoder().decode(pt);
 }

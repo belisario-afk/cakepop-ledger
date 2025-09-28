@@ -11,18 +11,17 @@ export const productRecipeCost = (productId) => {
   const r = getRecipes()[productId];
   if (!r) return null;
   const ingMap = Object.fromEntries(getIngredients().map(i=>[i.id,i]));
-  let sum = 0;
+  let total=0;
   for (const [ingId, qty] of Object.entries(r)){
-    const ing = ingMap[ingId];
-    if (!ing) continue;
-    sum += parseNum(ing.costPerUnit) * parseNum(qty);
+    const ing = ingMap[ingId]; if (!ing) continue;
+    total += parseNum(ing.costPerUnit) * parseNum(qty);
   }
-  return sum;
+  return total;
 };
 
 export const productBaseCost = (productId) => {
   const p = getProducts().find(p=>p.id===productId);
-  return p ? p.unitCost : 0;
+  return p? p.unitCost : 0;
 };
 
 export const productCost = (productId) => {
@@ -32,25 +31,25 @@ export const productCost = (productId) => {
 
 export const saleTotal = sale => {
   const gross = sale.unitPrice * sale.quantity;
-  return gross - (sale.discount || 0);
+  return gross - (sale.discount||0);
 };
 
 export const saleCost = sale => productCost(sale.productId) * sale.quantity;
 
 export const computeMetrics = (sales, expenses) => {
-  const rev = sales.reduce((a,s)=>a + saleTotal(s),0);
-  const cogs = sales.reduce((a,s)=>a + saleCost(s),0);
-  const gross = rev - cogs;
+  const revenue = sales.reduce((a,s)=>a+saleTotal(s),0);
+  const cogs = sales.reduce((a,s)=>a+saleCost(s),0);
+  const gross = revenue - cogs;
   const expSum = expenses.reduce((a,e)=>a + parseNum(e.amount),0);
   const net = gross - expSum;
   const orders = sales.length;
   return {
-    revenue: rev,
+    revenue,
     cogs,
     gross,
     expenses: expSum,
     net,
-    aov: orders ? rev/orders : 0,
-    margin: rev ? (gross/rev)*100 : 0
+    aov: orders? revenue/orders : 0,
+    margin: revenue? (gross/revenue)*100 : 0
   };
 };

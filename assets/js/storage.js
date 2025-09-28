@@ -1,41 +1,40 @@
-// (Modified to expose persist + no changes to existing logic except adding settings field if missing)
 import { getActiveUser } from './auth.js';
 
-const NEW_BASE_KEY = 'smallbatch-ledger-v2';
+const BASE_KEY = 'smallbatch-ledger-v2';
 const LEGACY_KEYS = ['cakepop-ledger-v2', 'cakepop-ledger-v1'];
 
 function nsKey(){
   const u = getActiveUser();
   const suffix = u?.sub || 'guest';
-  return `${NEW_BASE_KEY}::${suffix}`;
+  return `${BASE_KEY}::${suffix}`;
 }
 
 const defaultData = () => ({
-  version: 2,
-  products: [],
-  ingredients: [],
-  recipes: {},
-  sales: [],
-  expenses: [],
-  settings: null,
-  meta: { created: Date.now(), lastExport:null, lastSaved:null, migrated:true, brand:'smallbatch' }
+  version:2,
+  products:[],
+  ingredients:[],
+  recipes:{},
+  sales:[],
+  expenses:[],
+  settings:null,
+  meta:{ created:Date.now(), lastSaved:null, brand:'smallbatch' }
 });
 
 let _data = null;
 
-function attemptMigration(targetKey){
+function migrateLegacy(targetKey){
   if (localStorage.getItem(targetKey)) return;
-  for (const legacyBase of LEGACY_KEYS){
-    const legacyKey = `${legacyBase}::guest`;
-    const raw = localStorage.getItem(legacyKey);
+  for (const legacy of LEGACY_KEYS){
+    const legKey = `${legacy}::guest`;
+    const raw = localStorage.getItem(legKey);
     if (raw){
       try {
         const parsed = JSON.parse(raw);
         parsed.meta = parsed.meta || {};
-        parsed.meta.migratedFrom = legacyBase;
+        parsed.meta.migratedFrom = legacy;
         parsed.meta.migratedAt = Date.now();
         parsed.meta.brand = 'smallbatch';
-        if (!parsed.settings) parsed.settings = null;
+        if (parsed.settings === undefined) parsed.settings = null;
         localStorage.setItem(targetKey, JSON.stringify(parsed));
         return;
       } catch {}
@@ -46,13 +45,13 @@ function attemptMigration(targetKey){
 export function loadData(){
   const key = nsKey();
   if (_data && _data.__key === key) return _data;
-  attemptMigration(key);
+  migrateLegacy(key);
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) {
+    if (!raw){
       _data = defaultData();
       _data.__key = key;
-      seedInitialProducts();
+      seed();
       persist();
     } else {
       _data = JSON.parse(raw);
@@ -63,20 +62,20 @@ export function loadData(){
       if (_data.settings === undefined) _data.settings = null;
     }
   } catch(e){
-    console.warn('Storage load error; resetting', e);
+    console.warn('Storage load error, resetting', e);
     _data = defaultData();
     _data.__key = key;
-    seedInitialProducts();
+    seed();
     persist();
   }
   return _data;
 }
 
-function seedInitialProducts(){
+function seed(){
   if (!_data.products.length){
     _data.products.push(
-      { id:'p-sample1', name:'Classic Vanilla', unitCost:0.40, unitPrice:2.50, active:true },
-      { id:'p-sample2', name:'Rich Chocolate', unitCost:0.48, unitPrice:2.80, active:true }
+      { id:'p-sample1', name:'Classic Vanilla', unitCost:0.4, unitPrice:2.5, active:true },
+      { id:'p-sample2', name:'Rich Chocolate', unitCost:0.48, unitPrice:2.8, active:true }
     );
     _data.ingredients.push(
       { id:'ing-sugar', name:'Sugar', unit:'g', costPerUnit:0.002 },
@@ -117,10 +116,9 @@ export function upsertRecipeItem(productId, ingId, qty){
   d.recipes[productId][ingId] = qty;
   persist();
 }
-
 export function removeRecipeItem(productId, ingId){
   const d = loadData();
-  if (d.recipes[productId]) {
+  if (d.recipes[productId]){
     delete d.recipes[productId][ingId];
     persist();
   }
@@ -128,14 +126,14 @@ export function removeRecipeItem(productId, ingId){
 
 export function addSale(s){ loadData().sales.push(s); persist(); }
 export function removeSale(id){
-  const d = loadData();
+  const d=loadData();
   d.sales = d.sales.filter(s=>s.id!==id);
   persist();
 }
 
 export function addExpense(e){ loadData().expenses.push(e); persist(); }
 export function removeExpense(id){
-  const d = loadData();
+  const d=loadData();
   d.expenses = d.expenses.filter(x=>x.id!==id);
   persist();
 }
@@ -143,22 +141,22 @@ export function removeExpense(id){
 export function resetAll(){
   _data = defaultData();
   _data.__key = nsKey();
-  seedInitialProducts();
+  seed();
   persist();
 }
 
 export function importJson(obj){
   _data = obj;
   _data.__key = nsKey();
-  if (!_data.version) _data.version = 2;
-  if (!_data.ingredients) _data.ingredients = [];
-  if (!_data.recipes) _data.recipes = {};
-  if (_data.settings === undefined) _data.settings = null;
+  if (!_data.version) _data.version=2;
+  if (!_data.ingredients) _data.ingredients=[];
+  if (!_data.recipes) _data.recipes={};
+  if (_data.settings === undefined) _data.settings=null;
   persist();
 }
 
 export function exportJson(){
   const clone = structuredClone(getAll());
   delete clone.__key;
-  return JSON.stringify(clone, null, 2);
+  return JSON.stringify(clone,null,2);
 }

@@ -22,7 +22,7 @@ export function lineChart(canvas, data){
   data.forEach((d,i)=>{
     const x = pad + (i/(data.length-1))*innerW;
     const y = pad + innerH - ((d[1]-min)/range)*innerH;
-    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    i===0? ctx.moveTo(x,y) : ctx.lineTo(x,y);
   });
   ctx.stroke();
 

@@ -6,15 +6,18 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="description" content="SmallBatch: Offline-first sales, cost & ingredient tracking for small food businesses." />
   <meta name="theme-color" content="#0d9488" id="metaThemeColor" />
-  <!-- CSP without frame-ancestors (ignored in meta anyway) -->
+  <!-- Meta CSP (frame-ancestors removed). Note: for stronger CSP use server headers (not possible on GitHub Pages). -->
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; script-src 'self' https://accounts.google.com https://*.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.gstatic.com; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src https://accounts.google.com;">
-  <link rel="manifest" href="manifest.webmanifest?v=2" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png" />
-  <link rel="icon" type="image/png" sizes="512x512" href="assets/icons/icon-512.png" />
+  <link rel="manifest" href="manifest.webmanifest?v=4" />
   <link rel="icon" type="image/svg+xml" href="assets/icons/icon-source.svg" />
-  <link rel="stylesheet" href="assets/css/styles.css" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="assets/css/styles.css?v=4" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif; margin:0; background:#0f1617; color:#f2f7f7;}
+    .loading { display:flex; align-items:center; justify-content:center; min-height:60vh; font-size:1.05rem; letter-spacing:.5px;}
+  </style>
 </head>
 <body>
   <noscript>Please enable JavaScript to use SmallBatch.</noscript>
@@ -67,8 +70,289 @@
     </nav>
   </div>
 
-  <!-- (Templates omitted here for brevity – keep your existing ones) -->
+  <!-- Templates -->
 
-  <script type="module" src="assets/js/app.js?v=3"></script>
+  <template id="tpl-dashboard">
+    <section class="panel-grid">
+      <div class="card metric"><h3>Revenue</h3><p id="m-revenue">$0</p></div>
+      <div class="card metric"><h3>COGS</h3><p id="m-cogs">$0</p></div>
+      <div class="card metric"><h3>Gross Profit</h3><p id="m-gross">$0</p></div>
+      <div class="card metric"><h3>Net Profit</h3><p id="m-net">$0</p></div>
+      <div class="card metric"><h3>Margin</h3><p id="m-margin">0%</p></div>
+      <div class="card metric"><h3>Avg Order</h3><p id="m-aov">$0</p></div>
+    </section>
+    <section class="card glass">
+      <h2>30‑Day Revenue Trend</h2>
+      <canvas id="chartRevenue" height="160" aria-label="Revenue chart"></canvas>
+    </section>
+    <section class="card glass">
+      <h2>Top Products</h2>
+      <ul id="topFlavors" class="simple-list"></ul>
+    </section>
+  </template>
+
+  <template id="tpl-products">
+    <section class="card glass">
+      <h2>Products</h2>
+      <form id="productForm" class="grid-form" autocomplete="off">
+        <label>Name <input name="name" required maxlength="60" /></label>
+        <label>Base Cost ($)<input type="number" step="0.01" name="unitCost" required /></label>
+        <label>Price ($)<input type="number" step="0.01" name="unitPrice" required /></label>
+        <p class="note">If a recipe exists its computed cost overrides base cost.</p>
+        <button type="submit">Add Product</button>
+      </form>
+    </section>
+    <section class="card glass">
+      <h2>Product List</h2>
+      <table class="data-table" id="productsTable">
+        <thead>
+          <tr><th>Name</th><th>Base Cost</th><th>Recipe Cost</th><th>Price</th><th>Margin%</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </template>
+
+  <template id="tpl-ingredients">
+    <section class="card glass">
+      <h2>Ingredients</h2>
+      <form id="ingredientForm" class="grid-form">
+        <label>Name <input name="name" required maxlength="60" /></label>
+        <label>Unit <input name="unit" required maxlength="12" placeholder="g/ml/pc" /></label>
+        <label>Cost / Unit ($)<input type="number" step="0.0001" name="costPerUnit" required /></label>
+        <button type="submit">Add Ingredient</button>
+      </form>
+    </section>
+    <section class="card glass">
+      <h2>Ingredient List</h2>
+      <table class="data-table" id="ingredientsTable">
+        <thead><tr><th>Name</th><th>Unit</th><th>Cost</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </template>
+
+  <template id="tpl-recipes">
+    <section class="card glass">
+      <h2>Recipes</h2>
+      <form id="recipeForm" class="grid-form">
+        <label>Product
+          <select name="productId" required></select>
+        </label>
+        <label>Ingredient
+          <select name="ingredientId" required></select>
+        </label>
+        <label>Qty (ingredient units)<input type="number" step="0.0001" name="quantity" required /></label>
+        <button type="submit">Add / Update</button>
+      </form>
+    </section>
+    <section class="card glass">
+      <h2>Recipe Items</h2>
+      <div class="toolbar">
+        <select id="recipeProductSelect" aria-label="Select product"></select>
+        <button id="recalcRecipeBtn" type="button">Recalculate</button>
+      </div>
+      <table class="data-table" id="recipeTable">
+        <thead><tr><th>Ingredient</th><th>Qty</th><th>Unit Cost</th><th>Line</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p id="recipeTotalCost" class="note"></p>
+    </section>
+  </template>
+
+  <template id="tpl-sales">
+    <section class="card glass">
+      <h2>Log Sale</h2>
+      <form id="saleForm" class="grid-form">
+        <label>Date <input type="date" name="date" required /></label>
+        <label>Product <select name="productId" required></select></label>
+        <label>Qty <input type="number" name="quantity" min="1" value="1" required /></label>
+        <label>Unit Price ($)<input type="number" name="unitPrice" step="0.01" required /></label>
+        <label>Discount ($)<input type="number" name="discount" step="0.01" value="0" /></label>
+        <label>Notes <input name="notes" maxlength="120" /></label>
+        <button type="submit">Add Sale</button>
+      </form>
+    </section>
+    <section class="card glass">
+      <h2>Sales <small id="salesCount"></small></h2>
+      <div class="toolbar">
+        <input type="date" id="salesFrom" />
+        <input type="date" id="salesTo" />
+        <button id="filterSalesBtn">Filter</button>
+        <button id="clearSalesFilterBtn">Clear</button>
+      </div>
+      <table class="data-table" id="salesTable">
+        <thead><tr><th>Date</th><th>Product</th><th>Qty</th><th>Unit $</th><th>Discount</th><th>Total</th><th>Notes</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </template>
+
+  <template id="tpl-expenses">
+    <section class="card glass">
+      <h2>Log Expense</h2>
+      <form id="expenseForm" class="grid-form">
+        <label>Date <input type="date" name="date" required /></label>
+        <label>Category
+          <select name="category" required>
+            <option value="ingredients">Ingredients</option>
+            <option value="packaging">Packaging</option>
+            <option value="tools">Tools</option>
+            <option value="marketing">Marketing</option>
+            <option value="misc">Misc</option>
+          </select>
+        </label>
+        <label>Amount ($)<input type="number" step="0.01" name="amount" required /></label>
+        <label>Notes <input name="notes" maxlength="120" /></label>
+        <button type="submit">Add Expense</button>
+      </form>
+    </section>
+    <section class="card glass">
+      <h2>Expenses <small id="expenseTotal"></small></h2>
+      <div class="toolbar">
+        <input type="date" id="expFrom" />
+        <input type="date" id="expTo" />
+        <button id="filterExpBtn">Filter</button>
+        <button id="clearExpFilterBtn">Clear</button>
+      </div>
+      <table class="data-table" id="expensesTable">
+        <thead><tr><th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </template>
+
+  <template id="tpl-data">
+    <section class="card glass">
+      <h2>Data & Backup</h2>
+      <div class="toolbar vertical">
+        <div class="btn-row">
+          <button id="exportJsonBtn">Export JSON</button>
+          <button id="exportEncryptedBtn">Export Encrypted</button>
+          <button id="exportCsvBtn">Sales CSV</button>
+        </div>
+        <div class="btn-row">
+          <label class="file-label">Import JSON <input type="file" id="importJsonInput" accept="application/json" /></label>
+          <label class="file-label">Import Encrypted <input type="file" id="importEncryptedInput" accept="application/json" /></label>
+        </div>
+        <div class="btn-row">
+          <button id="resetAllBtn" class="danger">Reset All Data</button>
+        </div>
+      </div>
+      <p class="note">Encrypted export uses AES‑GCM (password not stored). Keep backups safe.</p>
+    </section>
+
+    <section class="card glass">
+      <h2>GitHub Gist Backup</h2>
+      <form id="gistForm" class="grid-form">
+        <label>GitHub Token (gist scope)<input type="password" name="token" autocomplete="off" /></label>
+        <label>Gist ID (blank=create)<input name="gistId" /></label>
+        <label>Auto Backup (minutes)<input type="number" name="interval" min="0" value="0" /></label>
+        <button type="submit">Save Settings</button>
+      </form>
+      <div class="toolbar">
+        <button id="gistBackupBtn">Manual Backup</button>
+        <button id="gistRestoreBtn">Restore</button>
+      </div>
+      <p id="gistStatus" class="note"></p>
+    </section>
+
+    <section class="card glass">
+      <h2>System Info</h2>
+      <ul id="sysInfo" class="simple-list"></ul>
+    </section>
+  </template>
+
+  <template id="tpl-settings">
+    <section class="card glass">
+      <h2>Store Profile</h2>
+      <form id="storeProfileForm" class="grid-form" autocomplete="off">
+        <label>Store Name <input name="storeName" maxlength="40" placeholder="e.g. Luxe Bites" /></label>
+        <label>Tagline <input name="tagline" maxlength="60" placeholder="Handcrafted Indulgence" /></label>
+        <label>Logo Image <input type="file" name="logoFile" accept="image/*" /></label>
+        <label>Emoji/Fallback <input name="logoEmoji" maxlength="4" placeholder="🧁" /></label>
+        <p class="note">Logo overrides emoji. Use square image.</p>
+        <button type="submit">Save Profile</button>
+      </form>
+    </section>
+
+    <section class="card glass">
+      <h2>Theme & Appearance</h2>
+      <form id="themeForm" class="grid-form">
+        <label>Preset
+          <select name="preset">
+            <option value="">(Current)</option>
+            <option value="default">Default</option>
+            <option value="gold">Gold</option>
+            <option value="noir">Noir</option>
+            <option value="rose">Rose</option>
+            <option value="emerald">Emerald</option>
+          </select>
+        </label>
+        <label>Primary <input type="color" name="primaryColor" value="#0d9488" /></label>
+        <label>Accent <input type="color" name="accentColor" value="#10b09f" /></label>
+        <label>Background <input type="color" name="bgColor" value="#0f1617" /></label>
+        <label>Surface <input type="color" name="elevColor" value="#1d2b2f" /></label>
+        <label>Mode
+          <select name="mode">
+            <option value="system">System</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+        <label>Glass
+          <select name="glass">
+            <option value="off">Off</option>
+            <option value="on">On</option>
+          </select>
+        </label>
+        <label>Typography
+          <select name="font">
+            <option value="system">System</option>
+            <option value="modern">Modern Sans</option>
+            <option value="serif">Elegant Serif</option>
+            <option value="rounded">Rounded</option>
+          </select>
+        </label>
+        <label>Background Style
+          <select name="bgStyle">
+            <option value="solid">Solid</option>
+            <option value="gradient">Gradient</option>
+            <option value="image">Image</option>
+            <option value="pattern">Pattern</option>
+          </select>
+        </label>
+        <label>Gradient CSS <input name="gradientValue" placeholder="linear-gradient(135deg,#0d9488,#10b09f)" /></label>
+        <label>Image URL <input name="imageUrl" placeholder="https://..." /></label>
+        <label>Pattern Seed <input name="patternSeed" placeholder="2025" /></label>
+        <div class="inline-buttons">
+          <button type="button" id="applyPresetBtn">Apply Preset</button>
+          <button type="button" id="previewPresetBtn">Preview Preset</button>
+          <button type="button" id="genPatternBtn">Generate Pattern</button>
+          <button type="button" id="previewThemeBtn">Preview</button>
+          <button type="submit">Save Theme</button>
+          <button type="button" id="resetThemeBtn" class="danger">Reset</button>
+        </div>
+        <div class="inline-buttons">
+          <button type="button" id="exportThemeBtn">Export Theme Preset</button>
+          <label class="file-label">Import Theme <input type="file" id="importThemeInput" accept="application/json" /></label>
+        </div>
+        <p class="note">Export/import only shares theme & branding (not business data).</p>
+      </form>
+    </section>
+
+    <section class="card glass">
+      <h2>Live Preview</h2>
+      <div id="themePreview" class="theme-preview">
+        <div class="preview-card">
+          <h3>Preview Headline</h3>
+          <p>Refined interface preview.</p>
+          <button class="preview-btn">Primary Action</button>
+        </div>
+      </div>
+    </section>
+  </template>
+
+  <script type="module" src="assets/js/app.js?v=4"></script>
 </body>
 </html>

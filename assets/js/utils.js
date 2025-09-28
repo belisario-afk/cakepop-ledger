@@ -5,7 +5,9 @@ export const uuid = () =>
   });
 
 export const fmtMoney = (n, digits=2) =>
-  '$' + (Number(n||0).toLocaleString(undefined,{minimumFractionDigits:digits,maximumFractionDigits:digits}));
+  '$' + (Number(n||0).toLocaleString(undefined,{
+    minimumFractionDigits:digits,maximumFractionDigits:digits
+  }));
 
 export const todayISO = () => new Date().toISOString().slice(0,10);
 
@@ -28,14 +30,8 @@ export const downloadBlob = (data, filename, type='application/json') => {
   link.href = URL.createObjectURL(blob);
   link.download = filename;
   link.click();
-  URL.revokeObjectURL(link.href);
+  setTimeout(()=>URL.revokeObjectURL(link.href), 2000);
 };
-
-export const groupBy = (arr, keyFn) => arr.reduce((acc,item)=>{
-  const k = keyFn(item);
-  (acc[k] ||= []).push(item);
-  return acc;
-}, {});
 
 export const daysAgo = (n) => {
   const d = new Date();

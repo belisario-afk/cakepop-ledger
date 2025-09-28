@@ -1,34 +1,34 @@
 import { loadData, persist } from './storage.js';
 
-export function ensureSettings() {
+export function ensureSettings(){
   const d = loadData();
   if (!d.settings) {
-    d.settings = baseDefaults();
+    d.settings = defaults();
     persist();
   } else {
-    // ensure new fields exist
-    const def = baseDefaults();
+    // fill missing fields
+    const def = defaults();
     d.settings.colors = { ...def.colors, ...(d.settings.colors||{}) };
     d.settings.background = { ...def.background, ...(d.settings.background||{}) };
-    if (!('font' in d.settings)) d.settings.font = 'system';
-    if (!('preset' in d.settings)) d.settings.preset = '';
-    if (!('luxClass' in d.settings)) d.settings.luxClass = '';
+    if (!('font' in d.settings)) d.settings.font='system';
+    if (!('preset' in d.settings)) d.settings.preset='default';
+    if (!('luxClass' in d.settings)) d.settings.luxClass='';
   }
   return d.settings;
 }
 
-function baseDefaults(){
+function defaults(){
   return {
-    storeName: 'SmallBatch',
-    tagline: 'Sales • Costs • Ingredients',
-    logoEmoji: '🧁',
-    logoDataUrl: '',
-    mode: 'system',
-    glass: 'off',
-    font: 'system',
-    preset: 'default',
+    storeName:'SmallBatch',
+    tagline:'Sales • Costs • Ingredients',
+    logoEmoji:'🧁',
+    logoDataUrl:'',
+    mode:'system',
+    glass:'off',
+    font:'system',
+    preset:'default',
     luxClass:'',
-    colors: {
+    colors:{
       primary:'#0d9488',
       accent:'#10b09f',
       bg:'#0f1617',
@@ -45,13 +45,13 @@ function baseDefaults(){
   };
 }
 
-export function getSettings() {
+export function getSettings(){
   const d = loadData();
   return d.settings || ensureSettings();
 }
 
-export function saveSettings(newSettings){
+export function saveSettings(s){
   const d = loadData();
-  d.settings = newSettings;
+  d.settings = s;
   persist();
 }

@@ -4,7 +4,7 @@ import { daysAgo } from './utils.js';
 
 export function salesLastNDays(n=30){
   const from = daysAgo(n-1);
-  return getSales().filter(s => s.date >= from);
+  return getSales().filter(s=>s.date >= from);
 }
 
 export function dailyRevenueSeries(n=30){
@@ -14,7 +14,7 @@ export function dailyRevenueSeries(n=30){
     map.set(d,0);
   }
   salesLastNDays(n).forEach(s=>{
-    map.set(s.date, (map.get(s.date)||0) + saleTotal(s));
+    map.set(s.date,(map.get(s.date)||0)+saleTotal(s));
   });
   return Array.from(map.entries());
 }
@@ -22,11 +22,11 @@ export function dailyRevenueSeries(n=30){
 export function topProducts(limit=5){
   const counts = {};
   getSales().forEach(s=>{
-    counts[s.productId] = (counts[s.productId]||0) + s.quantity;
+    counts[s.productId]=(counts[s.productId]||0)+s.quantity;
   });
   const prodLookup = Object.fromEntries(getProducts().map(p=>[p.id,p]));
   return Object.entries(counts)
     .sort((a,b)=>b[1]-a[1])
     .slice(0,limit)
-    .map(([id,qty])=>({ id, name: prodLookup[id]?.name || id, qty }));
+    .map(([id,qty])=>({id, name: prodLookup[id]?.name || id, qty}));
 }

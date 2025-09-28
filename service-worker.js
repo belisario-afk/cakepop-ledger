@@ -1,21 +1,41 @@
-const VERSION = 'smallbatch-fix-1.3.2';
-const CACHE = VERSION;
-const ASSETS = [
+/* Resilient SW: continues install even if some assets fail (no addAll fatal). */
+const VERSION='smallbatch-prod-1.3.3';
+const CACHE=VERSION;
+
+const ASSETS=[
   './',
   './index.html',
-  './manifest.webmanifest?v=2',
   './offline.html',
-  './assets/css/styles.css',
-  './assets/js/app.js?v=3',
+  './manifest.webmanifest?v=4',
+  './assets/css/styles.css?v=4',
+  './assets/js/app.js?v=4',
   './assets/js/ui.js',
+  './assets/js/utils.js',
   './assets/js/auth.js',
-  './assets/icons/icon-192.png',
-  './assets/icons/icon-512.png'
-  // Add other JS modules you actually use
+  './assets/js/storage.js',
+  './assets/js/models.js',
+  './assets/js/analytics.js',
+  './assets/js/charts.js',
+  './assets/js/export.js',
+  './assets/js/crypto.js',
+  './assets/js/gist-backup.js',
+  './assets/js/user-settings.js',
+  './assets/js/theme.js',
+  './assets/js/parallax.js',
+  './assets/js/pwa.js'
 ];
 
 self.addEventListener('install', e=>{
-  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)));
+  e.waitUntil((async()=>{
+    const cache = await caches.open(CACHE);
+    for (const url of ASSETS){
+      try {
+        await cache.add(url);
+      } catch(err){
+        console.warn('[SW] Asset cache failed:', url, err);
+      }
+    }
+  })());
   self.skipWaiting();
 });
 
@@ -29,29 +49,34 @@ self.addEventListener('activate', e=>{
 });
 
 self.addEventListener('fetch', e=>{
-  const req = e.request;
-  if (req.method !== 'GET') return;
-  if (req.mode === 'navigate'){
-    e.respondWith((async ()=>{
+  const req=e.request;
+  if (req.method!=='GET') return;
+  if (req.mode==='navigate'){
+    e.respondWith((async()=>{
       try {
-        const fresh = await fetch(req);
-        const cache = await caches.open(CACHE);
-        cache.put(req, fresh.clone());
+        const fresh=await fetch(req);
+        const cache=await caches.open(CACHE);
+        cache.put(req,fresh.clone());
         return fresh;
       } catch {
-        const cached = await caches.match(req);
-        return cached || Response.redirect('./offline.html');
+        const cached=await caches.match(req);
+        return cached || await caches.match('./offline.html');
       }
     })());
     return;
   }
-  if (new URL(req.url).origin === location.origin){
-    e.respondWith(
-      caches.match(req).then(cached=>cached || fetch(req).then(r=>{
-        const copy = r.clone();
-        caches.open(CACHE).then(c=>c.put(req, copy));
-        return r;
-      }).catch(()=>cached || new Response('Offline', {status:503})))
-    );
+  if (new URL(req.url).origin===location.origin){
+    e.respondWith((async()=>{
+      const cached=await caches.match(req);
+      if (cached) return cached;
+      try {
+        const res=await fetch(req);
+        const cache=await caches.open(CACHE);
+        cache.put(req,res.clone());
+        return res;
+      } catch {
+        return cached || new Response('Offline', {status:503});
+      }
+    })());
   }
 });
