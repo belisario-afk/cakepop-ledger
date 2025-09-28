@@ -1,5 +1,4 @@
 const AUTH_KEY = 'smallbatch-active-user';
-
 let _user = null;
 
 export function getActiveUser(){

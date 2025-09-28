@@ -5,8 +5,6 @@
       <stop offset="1" stop-color="#10b09f"/>
     </linearGradient>
   </defs>
-  <rect rx="28" ry="28" width="128" height="128" fill="url(#g)"/>
-  <g fill="#ffffff" font-family="system-ui,Segoe UI,Roboto" text-anchor="middle">
-    <text x="64" y="72" font-size="54" font-weight="700">SB</text>
-  </g>
+  <rect width="128" height="128" rx="28" ry="28" fill="url(#g)"/>
+  <text x="64" y="74" text-anchor="middle" font-family="system-ui,Segoe UI,Roboto" font-size="54" font-weight="700" fill="#ffffff">SB</text>
 </svg>

@@ -1,8 +1,7 @@
 {
   "name": "SmallBatch",
   "short_name": "SmallBatch",
-  "description": "SmallBatch: Track sales, costs & ingredients offline.",
-  "start_url": ".",
+  "start_url": "./?v=2",
   "display": "standalone",
   "background_color": "#0f1617",
   "theme_color": "#0d9488",

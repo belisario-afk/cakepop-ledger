@@ -10,7 +10,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   initThemeApplication();
   initNav();
   initTheme();
-  initAuth();
+  initAuth();  // must exist in ui.js
   switchView('dashboard');
   startAutoBackup();
   registerSW();

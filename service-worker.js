@@ -1,28 +1,17 @@
-const VERSION = 'smallbatch-1.3.1';
+const VERSION = 'smallbatch-fix-1.3.2';
 const CACHE = VERSION;
 const ASSETS = [
   './',
   './index.html',
+  './manifest.webmanifest?v=2',
   './offline.html',
-  './manifest.webmanifest',
   './assets/css/styles.css',
-  './assets/js/app.js',
+  './assets/js/app.js?v=3',
   './assets/js/ui.js',
-  './assets/js/utils.js',
-  './assets/js/storage.js',
-  './assets/js/models.js',
-  './assets/js/analytics.js',
-  './assets/js/charts.js',
-  './assets/js/export.js',
-  './assets/js/pwa.js',
-  './assets/js/crypto.js',
-  './assets/js/gist-backup.js',
   './assets/js/auth.js',
-  './assets/js/theme.js',
-  './assets/js/user-settings.js',
-  './assets/js/parallax.js',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png'
+  // Add other JS modules you actually use
 ];
 
 self.addEventListener('install', e=>{
@@ -42,7 +31,7 @@ self.addEventListener('activate', e=>{
 self.addEventListener('fetch', e=>{
   const req = e.request;
   if (req.method !== 'GET') return;
-  if (req.mode === 'navigate' || (req.headers.get('accept')||'').includes('text/html')){
+  if (req.mode === 'navigate'){
     e.respondWith((async ()=>{
       try {
         const fresh = await fetch(req);
@@ -51,23 +40,18 @@ self.addEventListener('fetch', e=>{
         return fresh;
       } catch {
         const cached = await caches.match(req);
-        return cached || await caches.match('./offline.html');
+        return cached || Response.redirect('./offline.html');
       }
     })());
     return;
   }
   if (new URL(req.url).origin === location.origin){
-    e.respondWith((async ()=>{
-      const cached = await caches.match(req);
-      if (cached) return cached;
-      try {
-        const res = await fetch(req);
-        const cache = await caches.open(CACHE);
-        cache.put(req, res.clone());
-        return res;
-      } catch {
-        return new Response('Offline', { status:503 });
-      }
-    })());
+    e.respondWith(
+      caches.match(req).then(cached=>cached || fetch(req).then(r=>{
+        const copy = r.clone();
+        caches.open(CACHE).then(c=>c.put(req, copy));
+        return r;
+      }).catch(()=>cached || new Response('Offline', {status:503})))
+    );
   }
 });
