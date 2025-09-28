@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <title>Cake Pop Ledger</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="description" content="Offline-first sales & expense tracker for a cake pop business." />
+  <meta name="description" content="Offline-first sales & expense tracker for a cake pop business with ingredients, encryption & backups." />
   <meta name="theme-color" content="#8146ff" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <!-- Basic CSP (meta form is limited but still helps). Adjust if you add CDNs. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self';">
+  <!-- Updated CSP to allow Google Identity Services -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com https://*.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.gstatic.com; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; frame-src https://accounts.google.com;">
   <meta name="color-scheme" content="dark light" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/svg+xml" href="assets/icons/icon-source.svg" />
@@ -16,8 +16,13 @@
   <style>
     body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif; margin:0; background:#121212; color:#eee; }
     .loading { display:flex; align-items:center; justify-content:center; height:100dvh; font-size:1.1rem; letter-spacing:.5px;}
+    .auth-bar { display:flex; gap:.5rem; align-items:center; }
+    .auth-bar button { background:#333; border:1px solid #444; color:#eee; padding:.4rem .7rem; border-radius:8px; cursor:pointer; font-size:.65rem;}
+    .auth-user { font-size:.6rem; opacity:.7; }
   </style>
   <link rel="stylesheet" href="assets/css/styles.css" />
+  <!-- Google Identity Services (optional; safe if client_id not configured yet) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <noscript>Please enable JavaScript to use the ledger.</noscript>
@@ -28,10 +33,17 @@
         <button data-view="dashboard" class="nav-btn active">Dashboard</button>
         <button data-view="sales" class="nav-btn">Sales</button>
         <button data-view="products" class="nav-btn">Products</button>
+        <button data-view="recipes" class="nav-btn">Recipes</button>
+        <button data-view="ingredients" class="nav-btn">Ingredients</button>
         <button data-view="expenses" class="nav-btn">Expenses</button>
         <button data-view="data" class="nav-btn">Data</button>
         <button id="darkModeBtn" title="Toggle dark/light">🌓</button>
       </nav>
+      <div class="auth-bar">
+        <div id="gSignInContainer"></div>
+        <span id="authUser" class="auth-user"></span>
+        <button id="signOutBtn" style="display:none;">Sign Out</button>
+      </div>
     </header>
 
     <main id="viewContainer" class="views">
@@ -39,11 +51,11 @@
     </main>
 
     <footer class="footer">
-      <small>&copy; <span id="year"></span> Cake Pop Ledger · Local only · <a href="#" id="exportJsonLink">Export JSON</a></small>
+      <small>&copy; <span id="year"></span> Cake Pop Ledger · Local only unless you enable gist / auth · <a href="#" id="exportJsonLink">Export JSON</a></small>
     </footer>
   </div>
 
-  <!-- Templates (same as earlier version) -->
+  <!-- Templates -->
   <template id="tpl-dashboard">
     <section class="panel-grid">
       <div class="card metric"><h3>Revenue</h3><p id="m-revenue">$0</p></div>
@@ -60,6 +72,79 @@
     <section class="card">
       <h2>Top Flavors</h2>
       <ul id="topFlavors" class="simple-list"></ul>
+    </section>
+  </template>
+
+  <template id="tpl-products">
+    <section class="card">
+      <h2>Products / Flavors</h2>
+      <form id="productForm" class="grid-form" autocomplete="off">
+        <label>Name <input name="name" required maxlength="40" /></label>
+        <label>Cost per Unit ($) <input type="number" step="0.01" name="unitCost" required /></label>
+        <label>Default Price ($) <input type="number" step="0.01" name="unitPrice" required /></label>
+        <p class="note">If a recipe exists, unit cost is calculated from ingredients.</p>
+        <button type="submit">Add Product</button>
+      </form>
+    </section>
+    <section class="card">
+      <h2>Product List</h2>
+      <table class="data-table" id="productsTable">
+        <thead>
+          <tr><th>Name</th><th>Base Cost</th><th>Recipe Cost</th><th>Price</th><th>Margin%</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </template>
+
+  <template id="tpl-recipes">
+    <section class="card">
+      <h2>Recipes (Link Ingredients to Products)</h2>
+      <form id="recipeForm" class="grid-form">
+        <label>Product
+          <select name="productId" required></select>
+        </label>
+        <label>Ingredient
+          <select name="ingredientId" required></select>
+        </label>
+        <label>Qty (ingredient units)<input type="number" step="0.0001" name="quantity" required /></label>
+        <button type="submit">Add / Update Ingredient</button>
+      </form>
+    </section>
+    <section class="card">
+      <h2>Recipe Details</h2>
+      <div class="toolbar">
+        <select id="recipeProductSelect"></select>
+        <button id="recalcRecipeBtn">Recalc Cost</button>
+      </div>
+      <table class="data-table" id="recipeTable">
+        <thead>
+          <tr><th>Ingredient</th><th>Qty</th><th>Unit Cost</th><th>Line Cost</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="recipeTotalCost" class="note"></p>
+    </section>
+  </template>
+
+  <template id="tpl-ingredients">
+    <section class="card">
+      <h2>Ingredients</h2>
+      <form id="ingredientForm" class="grid-form" autocomplete="off">
+        <label>Name <input name="name" required maxlength="50" /></label>
+        <label>Unit (e.g. g, ml, pc)<input name="unit" required maxlength="12" /></label>
+        <label>Cost / Unit ($)<input type="number" step="0.0001" name="costPerUnit" required /></label>
+        <button type="submit">Add Ingredient</button>
+      </form>
+    </section>
+    <section class="card">
+      <h2>Ingredient List</h2>
+      <table class="data-table" id="ingredientsTable">
+        <thead>
+          <tr><th>Name</th><th>Unit</th><th>Cost/Unit</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
     </section>
   </template>
 
@@ -91,27 +176,6 @@
           <tr>
             <th>Date</th><th>Product</th><th>Qty</th><th>Unit $</th><th>Discount</th><th>Total $</th><th>Notes</th><th></th>
           </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </section>
-  </template>
-
-  <template id="tpl-products">
-    <section class="card">
-      <h2>Products / Flavors</h2>
-      <form id="productForm" class="grid-form" autocomplete="off">
-        <label>Name <input name="name" required maxlength="40" /></label>
-        <label>Cost per Unit ($)<input type="number" step="0.01" name="unitCost" required /></label>
-        <label>Default Price ($)<input type="number" step="0.01" name="unitPrice" required /></label>
-        <button type="submit">Add Product</button>
-      </form>
-    </section>
-    <section class="card">
-      <h2>Product List</h2>
-      <table class="data-table" id="productsTable">
-        <thead>
-          <tr><th>Name</th><th>Cost</th><th>Price</th><th>Margin%</th><th></th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -157,12 +221,44 @@
   <template id="tpl-data">
     <section class="card">
       <h2>Data & Backup</h2>
-      <button id="exportJsonBtn">Export JSON</button>
-      <button id="exportCsvBtn">Export CSV (Sales)</button>
-      <label>Import JSON <input type="file" id="importJsonInput" accept="application/json" /></label>
-      <button id="resetAllBtn" class="danger">⚠ Reset All Data</button>
-      <p class="note">All data is stored locally in your browser. Export regularly for backup.</p>
+      <div class="toolbar" style="flex-direction:column;align-items:flex-start;gap:.6rem;">
+        <div>
+          <button id="exportJsonBtn">Export JSON (Plain)</button>
+          <button id="exportEncryptedBtn">Export Encrypted</button>
+          <button id="exportCsvBtn">Export CSV (Sales)</button>
+        </div>
+        <div>
+          <label>Import JSON <input type="file" id="importJsonInput" accept="application/json" /></label>
+          <label>Import Encrypted JSON <input type="file" id="importEncryptedInput" accept="application/json" /></label>
+        </div>
+        <div>
+          <button id="resetAllBtn" class="danger">⚠ Reset All Data</button>
+        </div>
+      </div>
+      <p class="note">Encrypted export uses AES‑GCM with PBKDF2; losing the password means permanent loss of that export.</p>
     </section>
+
+    <section class="card">
+      <h2>GitHub Gist Backup</h2>
+      <form id="gistForm" class="grid-form">
+        <label>GitHub Token (gist scope)
+          <input type="password" name="token" autocomplete="off" />
+        </label>
+        <label>Gist ID (leave blank to create)
+          <input name="gistId" />
+        </label>
+        <label>Auto Backup (minutes)
+          <input type="number" name="interval" min="0" value="0" />
+        </label>
+        <button type="submit">Save Settings</button>
+      </form>
+      <div class="toolbar">
+        <button id="gistBackupBtn">Manual Backup</button>
+        <button id="gistRestoreBtn">Restore From Gist</button>
+      </div>
+      <p class="note" id="gistStatus"></p>
+    </section>
+
     <section class="card">
       <h2>System Info</h2>
       <ul id="sysInfo" class="simple-list"></ul>

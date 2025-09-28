@@ -1,5 +1,5 @@
-/* Service Worker with offline fallback and versioned cache */
-const VERSION = '1.0.1';
+/* Updated Service Worker (added new assets) */
+const VERSION = '1.1.0';
 const CACHE = `cakepop-ledger-${VERSION}`;
 const ASSETS = [
   './',
@@ -16,6 +16,9 @@ const ASSETS = [
   './assets/js/charts.js',
   './assets/js/export.js',
   './assets/js/pwa.js',
+  './assets/js/crypto.js',
+  './assets/js/gist-backup.js',
+  './assets/js/auth.js',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png'
 ];
@@ -35,14 +38,9 @@ self.addEventListener('activate', e=>{
   self.clients.claim();
 });
 
-/* Network strategy:
-   - For navigation requests: network first, fallback to cache, then offline page
-   - For assets: cache-first
-*/
 self.addEventListener('fetch', e=>{
   const req = e.request;
   if (req.method !== 'GET') return;
-  const mode = req.mode;
 
   if (req.mode === 'navigate' || (req.headers.get('accept')||'').includes('text/html')){
     e.respondWith((async ()=>{
@@ -59,7 +57,6 @@ self.addEventListener('fetch', e=>{
     return;
   }
 
-  // For same-origin static assets: cache-first
   if (new URL(req.url).origin === location.origin){
     e.respondWith((async ()=>{
       const cached = await caches.match(req);
