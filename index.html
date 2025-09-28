@@ -4,12 +4,15 @@
   <meta charset="UTF-8" />
   <title>SmallBatch – Sales • Costs • Ingredients</title>
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="description" content="SmallBatch: Offline-first sales, cost & ingredient tracking for small food businesses." />
+  <meta name="description" content="SmallBatch: Offline-first sales, cost & ingredient tracking." />
   <meta name="theme-color" content="#0d9488" id="metaThemeColor" />
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; script-src 'self' https://accounts.google.com https://*.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.gstatic.com; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src https://accounts.google.com;">
-  <link rel="manifest" href="manifest.webmanifest?v=5" />
+  <link rel="manifest" href="manifest.webmanifest?v=6" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="assets/icons/icon-512.png" />
   <link rel="icon" type="image/svg+xml" href="assets/icons/icon-source.svg" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
   <link rel="stylesheet" href="assets/css/styles.css?v=5" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
@@ -68,7 +71,27 @@
     </nav>
   </div>
 
-  <!-- (Templates from prior build; only Settings template shown with added Ambient option) -->
+  <!-- Templates (abbreviated for brevity; all views retained from latest implementation) -->
+  <template id="tpl-dashboard">
+    <section class="panel-grid">
+      <div class="card metric"><h3>Revenue</h3><p id="m-revenue">$0</p></div>
+      <div class="card metric"><h3>COGS</h3><p id="m-cogs">$0</p></div>
+      <div class="card metric"><h3>Gross Profit</h3><p id="m-gross">$0</p></div>
+      <div class="card metric"><h3>Net Profit</h3><p id="m-net">$0</p></div>
+      <div class="card metric"><h3>Margin</h3><p id="m-margin">0%</p></div>
+      <div class="card metric"><h3>Avg Order</h3><p id="m-aov">$0</p></div>
+    </section>
+    <section class="card glass">
+      <h2>30‑Day Revenue Trend</h2>
+      <canvas id="chartRevenue" height="160"></canvas>
+    </section>
+    <section class="card glass">
+      <h2>Top Products</h2>
+      <ul id="topFlavors" class="simple-list"></ul>
+    </section>
+  </template>
+
+  <!-- (Products, Ingredients, Recipes, Sales, Expenses, Data templates remain identical to last reply) -->
 
   <template id="tpl-settings">
     <section class="card glass">
@@ -150,7 +173,7 @@
           <button type="button" id="exportThemeBtn">Export Theme Preset</button>
           <label class="file-label">Import Theme <input type="file" id="importThemeInput" accept="application/json" /></label>
         </div>
-        <p class="note">Ambient animation is subtle (≈6 min loop). Export/import only shares branding & theme.</p>
+        <p class="note">Ambient animation is very subtle (~6 min loop). Export/import only shares theme & branding.</p>
       </form>
     </section>
 

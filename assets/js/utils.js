@@ -1,3 +1,4 @@
+/* Utility functions */
 export const uuid = () =>
   crypto.randomUUID ? crypto.randomUUID() :
   'xxxxxxxyxxxx'.replace(/[xy]/g,c=>{
@@ -30,7 +31,7 @@ export const downloadBlob = (data, filename, type='application/json') => {
   link.href = URL.createObjectURL(blob);
   link.download = filename;
   link.click();
-  setTimeout(()=>URL.revokeObjectURL(link.href), 2000);
+  setTimeout(()=>URL.revokeObjectURL(link.href), 1500);
 };
 
 export const daysAgo = (n) => {
