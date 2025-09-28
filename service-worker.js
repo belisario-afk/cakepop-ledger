@@ -1,76 +1,48 @@
-/* Version bumped for CSP + modal fix + icon fetch update */
-const VERSION='smallbatch-prod-1.3.5';
-const CACHE=VERSION;
-const ASSETS=[
-  './',
-  './index.html',
-  './offline.html',
-  './manifest.webmanifest?v=6',
-  './assets/css/styles.css?v=6',
-  './assets/js/app.js?v=6',
-  './assets/js/ui.js',
-  './assets/js/utils.js',
-  './assets/js/auth.js',
-  './assets/js/storage.js',
-  './assets/js/models.js',
-  './assets/js/analytics.js',
-  './assets/js/charts.js',
-  './assets/js/export.js',
-  './assets/js/crypto.js',
-  './assets/js/gist-backup.js',
-  './assets/js/user-settings.js',
-  './assets/js/theme.js',
-  './assets/js/parallax.js',
-  './assets/js/pwa.js',
-  './assets/icons/icon-192.png',
-  './assets/icons/icon-512.png'
-];
+/* Only show if you haven’t already applied 1.3.5; else keep your latest.
+   Bump to 1.3.6 to force cache refresh for ui.js */
 
+const VERSION='smallbatch-prod-1.3.6';
+const CACHE=VERSION;
+const ASSETS=[ /* (same list you already had, include ui.js?v=6 or current) */ ];
 self.addEventListener('install', e=>{
   e.waitUntil((async()=>{
-    const cache=await caches.open(CACHE);
-    for(const url of ASSETS){
-      try { await cache.add(url); }
-      catch(err){ console.warn('[SW] Cache fail', url, err); }
+    const c=await caches.open(CACHE);
+    for(const u of ASSETS){
+      try{ await c.add(u);}catch(err){ console.warn('[SW] fail',u,err);}
     }
   })());
   self.skipWaiting();
 });
-
 self.addEventListener('activate', e=>{
-  e.waitUntil(
-    caches.keys().then(keys=>Promise.all(
-      keys.filter(k=>k.startsWith('smallbatch-') && k!==CACHE).map(k=>caches.delete(k))
-    ))
-  );
+  e.waitUntil(caches.keys().then(keys=>Promise.all(
+    keys.filter(k=>k.startsWith('smallbatch-') && k!==CACHE).map(k=>caches.delete(k))
+  )));
   self.clients.claim();
 });
-
 self.addEventListener('fetch', e=>{
-  const req=e.request;
-  if(req.method!=='GET') return;
-  if(req.mode==='navigate'){
+  const r=e.request;
+  if(r.method!=='GET') return;
+  if(r.mode==='navigate'){
     e.respondWith((async()=>{
       try{
-        const fresh=await fetch(req);
+        const fresh=await fetch(r);
         const cache=await caches.open(CACHE);
-        cache.put(req,fresh.clone());
+        cache.put(r,fresh.clone());
         return fresh;
       }catch{
-        const cached=await caches.match(req);
+        const cached=await caches.match(r);
         return cached || await caches.match('./offline.html');
       }
     })());
     return;
   }
-  if(new URL(req.url).origin===location.origin){
+  if(new URL(r.url).origin===location.origin){
     e.respondWith((async()=>{
-      const cached=await caches.match(req);
+      const cached=await caches.match(r);
       if(cached) return cached;
       try{
-        const res=await fetch(req);
-        const cache=await caches.open(CACHE);
-        cache.put(req,res.clone());
+        const res=await fetch(r);
+        (await caches.open(CACHE)).put(r,res.clone());
         return res;
       }catch{
         return cached || new Response('Offline',{status:503});

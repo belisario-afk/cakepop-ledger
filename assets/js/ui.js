@@ -1,32 +1,47 @@
-/* PATCHED: Quick Entry modal robust closing, auto-close toggle, CSP unaffected here */
-... (KEEP ALL YOUR EXISTING CONTENT FROM PREVIOUS ui.js UNTIL THE QUICK MODAL SECTION) ...
+/***** QUICK MODAL SECTION (REPLACE YOUR EXISTING QUICK MODAL FUNCTIONS WITH ALL OF THIS) *****/
 
-/* Replace ONLY the Quick Modal related functions with the versions below.
-   If easier, you can fully replace the entire ui.js with the most recent version you had plus these updated functions.
-   For brevity, only the changed parts are shown here. Ensure helper imports remain unchanged. */
+/* State */
+let quickModalBound = false;
+let quickEscListener = null;
 
-/* ---------- QUICK MODAL (UPDATED) ---------- */
+/* Initialize or re-bind the quick modal */
 function initQuickModal(){
-  const btn=document.getElementById('quickAddBtn');
-  const modal=document.getElementById('quickModal');
-  if(!btn||!modal) return;
+  const btn  = document.getElementById('quickAddBtn');
+  const modal = document.getElementById('quickModal');
+  if(!btn || !modal) return;
 
-  if(!modal.dataset.bound){
-    modal.dataset.bound='1';
-    modal.addEventListener('click',e=>{
-      if(e.target.hasAttribute('data-close')) closeQuickModal();
-    });
-    modal.querySelector('.qm-close')?.addEventListener('click', closeQuickModal);
-  }
-  btn.addEventListener('click',()=>openQuickModal('sale'));
-
-  // Tabs
-  modal.querySelectorAll('.qm-tab').forEach(tab=>{
-    tab.addEventListener('click',()=>{
-      switchQuickTab(tab.getAttribute('data-tab'));
-    });
+  // Toggle open on button click
+  btn.addEventListener('click', ()=>{
+    if (!modal.hidden) {
+      closeQuickModal();
+    } else {
+      openQuickModal('sale');
+    }
   });
 
+  // Bind once
+  if (!quickModalBound) {
+    quickModalBound = true;
+
+    // Delegate clicks for close elements / backdrop
+    modal.addEventListener('click', e=>{
+      if (
+        e.target.hasAttribute('data-close') ||
+        e.target.classList.contains('qm-backdrop')
+      ){
+        closeQuickModal();
+      }
+    });
+
+    // Tab switching
+    modal.querySelectorAll('.qm-tab').forEach(tab=>{
+      tab.addEventListener('click', ()=>{
+        switchQuickTab(tab.getAttribute('data-tab'));
+      });
+    });
+  }
+
+  // Ensure products + dates & preferences each time
   populateQuickSaleProducts();
   seedQuickDates();
   restoreQuickPrefs();
@@ -34,46 +49,113 @@ function initQuickModal(){
   wireQuickForms();
 }
 
+/* Switch pane */
 function switchQuickTab(name){
   const modal=document.getElementById('quickModal');
+  if(!modal) return;
   modal.querySelectorAll('.qm-tab').forEach(t=>{
-    const active=t.getAttribute('data-tab')===name;
-    t.classList.toggle('active',active);
-    t.setAttribute('aria-selected',active?'true':'false');
+    const active = t.getAttribute('data-tab')===name;
+    t.classList.toggle('active', active);
+    t.setAttribute('aria-selected', active?'true':'false');
   });
   modal.querySelectorAll('.qm-form').forEach(f=>{
     f.hidden = f.getAttribute('data-pane')!==name;
   });
+  // Focus first field
   modal.querySelector(`[data-pane="${name}"]`)?.querySelector('input,select')?.focus();
 }
 
-function populateQuickSaleProducts(){
-  const saleSel=document.querySelector('#quickSaleForm select[name="productId"]');
-  if(!saleSel) return;
-  saleSel.innerHTML='';
-  getProducts().forEach(p=>{
-    const o=document.createElement('option');
-    o.value=p.id; o.textContent=p.name;
-    saleSel.appendChild(o);
-  });
+/* Open quick modal (tab = 'sale'|'expense') */
+function openQuickModal(tab='sale'){
+  const modal=document.getElementById('quickModal');
+  const btn=document.getElementById('quickAddBtn');
+  if(!modal) return;
+
+  populateQuickSaleProducts();
+  seedQuickDates();
+  restoreQuickPrefs();
+  rebuildRecentChips();
+  switchQuickTab(tab);
+
+  modal.hidden=false;
+  document.body.style.overflow='hidden';
+  btn?.setAttribute('aria-expanded','true');
+
+  // ESC / ALT+Q / ALT+W / CTRL+W close (without interfering w/ browser if focused inside)
+  if(!quickEscListener){
+    quickEscListener = (e)=>{
+      if(
+        e.key==='Escape' ||
+        (e.altKey && (e.key.toLowerCase()==='q' || e.key.toLowerCase()==='w')) ||
+        (e.ctrlKey && e.key.toLowerCase()==='w')
+      ){
+        if(!modal.hidden){
+          e.preventDefault();
+          closeQuickModal();
+        }
+      }
+    };
+    window.addEventListener('keydown', quickEscListener, { capture:true });
+  }
 }
 
+/* Close quick modal */
+function closeQuickModal(){
+  const modal=document.getElementById('quickModal');
+  const btn=document.getElementById('quickAddBtn');
+  if(!modal || modal.hidden) return;
+  modal.hidden=true;
+  document.body.style.overflow='';
+  btn?.setAttribute('aria-expanded','false');
+
+  // Keep ESC listener if you want multiple reopens quickly;
+  // If you prefer to remove each time, uncomment:
+  // if(quickEscListener){
+  //   window.removeEventListener('keydown', quickEscListener, { capture:true });
+  //   quickEscListener=null;
+  // }
+}
+
+/* Populate product select each open */
+function populateQuickSaleProducts(){
+  const sel=document.querySelector('#quickSaleForm select[name="productId"]');
+  if(!sel) return;
+  const currentValue = sel.value;
+  sel.innerHTML='';
+  getProducts().forEach(p=>{
+    const o=document.createElement('option');
+    o.value=p.id;
+    o.textContent=p.name;
+    sel.appendChild(o);
+  });
+  // Try to preserve selected product if still exists
+  if(currentValue && [...sel.options].some(o=>o.value===currentValue)){
+    sel.value=currentValue;
+  }
+}
+
+/* Ensure date fields set */
 function seedQuickDates(){
   document.querySelectorAll('#quickModal input[type="date"]').forEach(d=>{
     if(!d.value) d.value = todayISO();
   });
 }
 
+/* Restore toggle prefs for lock date & auto-close */
 function restoreQuickPrefs(){
   const saleLock=document.querySelector('#quickSaleForm input[name="lockDate"]');
   const saleAuto=document.querySelector('#quickSaleForm input[name="autoClose"]');
-  const expAuto=document.querySelector('#quickExpenseForm input[name="autoClose"]');
+  const expAuto =document.querySelector('#quickExpenseForm input[name="autoClose"]');
+
   if(saleLock) saleLock.checked = !!uiPrefs.lockDate;
-  if(saleAuto) saleAuto.checked = (uiPrefs.autoCloseQuick!==false); // default true
-  if(expAuto) expAuto.checked = (uiPrefs.autoCloseQuick!==false);
-  saleLock?.addEventListener('change',e=>{
-    uiPrefs.lockDate=e.target.checked; saveUIPrefs();
+  if(saleAuto) saleAuto.checked = (uiPrefs.autoCloseQuick!==false);
+  if(expAuto)  expAuto.checked = (uiPrefs.autoCloseQuick!==false);
+
+  saleLock?.addEventListener('change', e=>{
+    uiPrefs.lockDate = e.target.checked;
+    saveUIPrefs();
   });
+
   [saleAuto, expAuto].forEach(ch=>{
     ch?.addEventListener('change', e=>{
       uiPrefs.autoCloseQuick = e.target.checked;
@@ -82,90 +164,65 @@ function restoreQuickPrefs(){
   });
 }
 
+/* Wire sale & expense forms (no duplication on re-open) */
 function wireQuickForms(){
   const saleForm=document.getElementById('quickSaleForm');
-  const expForm=document.getElementById('quickExpenseForm');
+  const expForm =document.getElementById('quickExpenseForm');
 
-  saleForm?.addEventListener('submit', e=>{
-    e.preventDefault();
-    const fd=new FormData(saleForm);
-    const date=fd.get('date');
-    const sale={
-      id:'s-'+uuid(),
-      date,
-      productId:fd.get('productId'),
-      quantity:parseInt(fd.get('quantity'))||0,
-      unitPrice:parseNum(fd.get('unitPrice')),
-      discount:parseNum(fd.get('discount'))||0,
-      notes:fd.get('notes')?.trim()
-    };
-    if(!sale.productId||sale.quantity<=0) return;
-    addSale(sale);
-    trackRecentProduct(sale.productId);
-    markSaved();
-    if(!uiPrefs.lockDate) saleForm.reset();
-    if(uiPrefs.lockDate) saleForm.date.value=date;
-    saleForm.productId.focus();
-    rebuildRecentChips();
-    if(currentView==='dashboard') fillDashboard();
-    if(currentView==='sales') fillSales();
-    if(uiPrefs.autoCloseQuick) closeQuickModal();
-  });
+  if(saleForm && !saleForm.dataset.bound){
+    saleForm.dataset.bound='1';
+    saleForm.addEventListener('submit', e=>{
+      e.preventDefault();
+      const fd=new FormData(saleForm);
+      const date=fd.get('date');
+      const sale={
+        id:'s-'+uuid(),
+        date,
+        productId:fd.get('productId'),
+        quantity:parseInt(fd.get('quantity'))||0,
+        unitPrice:parseNum(fd.get('unitPrice')),
+        discount:parseNum(fd.get('discount'))||0,
+        notes:fd.get('notes')?.trim()
+      };
+      if(!sale.productId || sale.quantity<=0) return;
+      addSale(sale);
+      trackRecentProduct(sale.productId);
+      markSaved();
+      if(!uiPrefs.lockDate) saleForm.reset();
+      if(uiPrefs.lockDate) saleForm.date.value=date;
+      saleForm.productId.focus();
+      rebuildRecentChips();
+      if(currentView==='dashboard') fillDashboard();
+      if(currentView==='sales') fillSales();
+      if(uiPrefs.autoCloseQuick) closeQuickModal();
+    });
+  }
 
-  expForm?.addEventListener('submit', e=>{
-    e.preventDefault();
-    const fd=new FormData(expForm);
-    const exp={
-      id:'e-'+uuid(),
-      date:fd.get('date'),
-      category:fd.get('category'),
-      amount:parseNum(fd.get('amount')),
-      notes:fd.get('notes')?.trim()
-    };
-    if(exp.amount<=0) return;
-    addExpense(exp);
-    markSaved();
-    expForm.reset();
-    expForm.date.value=todayISO();
-    if(currentView==='dashboard') fillDashboard();
-    if(currentView==='expenses') fillExpenses();
-    if(uiPrefs.autoCloseQuick) closeQuickModal();
-  });
-}
-
-function openQuickModal(tab='sale'){
-  const modal=document.getElementById('quickModal');
-  if(!modal) return;
-  populateQuickSaleProducts();
-  seedQuickDates();
-  restoreQuickPrefs();
-  rebuildRecentChips();
-  modal.hidden=false;
-  document.body.style.overflow='hidden';
-  switchQuickTab(tab);
-  if(!modal.dataset.escBound){
-    modal.dataset.escBound='1';
-    window.addEventListener('keydown', escCloser, {capture:true});
+  if(expForm && !expForm.dataset.bound){
+    expForm.dataset.bound='1';
+    expForm.addEventListener('submit', e=>{
+      e.preventDefault();
+      const fd=new FormData(expForm);
+      const exp={
+        id:'e-'+uuid(),
+        date:fd.get('date'),
+        category:fd.get('category'),
+        amount:parseNum(fd.get('amount')),
+        notes:fd.get('notes')?.trim()
+      };
+      if(exp.amount<=0) return;
+      addExpense(exp);
+      markSaved();
+      expForm.reset();
+      expForm.date.value=todayISO();
+      if(currentView==='dashboard') fillDashboard();
+      if(currentView==='expenses') fillExpenses();
+      if(uiPrefs.autoCloseQuick) closeQuickModal();
+    });
   }
 }
 
-function escCloser(e){
-  if(e.key==='Escape'){
-    const modal=document.getElementById('quickModal');
-    if(modal && !modal.hidden){
-      e.stopPropagation();
-      closeQuickModal();
-    }
-  }
-}
-
-function closeQuickModal(){
-  const modal=document.getElementById('quickModal');
-  if(!modal) return;
-  modal.hidden=true;
-  document.body.style.overflow='';
-}
-
+/* Build recent product chips */
 function rebuildRecentChips(){
   const cont=document.getElementById('recentProducts');
   if(!cont) return;
@@ -173,9 +230,11 @@ function rebuildRecentChips(){
   if(!recentProducts.length) return;
   const prodLookup=Object.fromEntries(getProducts().map(p=>[p.id,p.name]));
   recentProducts.slice(0,3).forEach(pid=>{
-    const chip=document.createElement('div');
+    const chip=document.createElement('button');
+    chip.type='button';
     chip.className='recent-chip';
     chip.textContent=prodLookup[pid]||pid;
+    chip.setAttribute('title','Use '+(prodLookup[pid]||pid));
     chip.addEventListener('click',()=>{
       const sel=document.querySelector('#quickSaleForm select[name="productId"]');
       if(sel){
@@ -187,7 +246,6 @@ function rebuildRecentChips(){
   });
 }
 
-/* Replace existing initQuickModal, openQuickModal, closeQuickModal, rebuildRecentChips
-   in your file with the above updated versions. Keep other functions unchanged. */
-
+/* Export public functions (keep at bottom of file if needed elsewhere) */
 export { openQuickModal, closeQuickModal };
+/***** END QUICK MODAL PATCH *****/
