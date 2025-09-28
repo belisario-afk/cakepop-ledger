@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cake Pop Ledger</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="Offline-first sales & expense tracker for a cake pop business." />
+  <meta name="theme-color" content="#8146ff" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <!-- Basic CSP (meta form is limited but still helps). Adjust if you add CDNs. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self';">
+  <meta name="color-scheme" content="dark light" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="assets/icons/icon-source.svg" />
+  <link rel="alternate icon" href="assets/icons/icon-192.png" sizes="192x192" />
+  <style>
+    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif; margin:0; background:#121212; color:#eee; }
+    .loading { display:flex; align-items:center; justify-content:center; height:100dvh; font-size:1.1rem; letter-spacing:.5px;}
+  </style>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <noscript>Please enable JavaScript to use the ledger.</noscript>
+  <div id="app" class="app">
+    <header class="topbar">
+      <h1>🎂 Cake Pop Ledger</h1>
+      <nav class="nav" id="nav">
+        <button data-view="dashboard" class="nav-btn active">Dashboard</button>
+        <button data-view="sales" class="nav-btn">Sales</button>
+        <button data-view="products" class="nav-btn">Products</button>
+        <button data-view="expenses" class="nav-btn">Expenses</button>
+        <button data-view="data" class="nav-btn">Data</button>
+        <button id="darkModeBtn" title="Toggle dark/light">🌓</button>
+      </nav>
+    </header>
+
+    <main id="viewContainer" class="views">
+      <div class="loading">Loading...</div>
+    </main>
+
+    <footer class="footer">
+      <small>&copy; <span id="year"></span> Cake Pop Ledger · Local only · <a href="#" id="exportJsonLink">Export JSON</a></small>
+    </footer>
+  </div>
+
+  <!-- Templates (same as earlier version) -->
+  <template id="tpl-dashboard">
+    <section class="panel-grid">
+      <div class="card metric"><h3>Revenue</h3><p id="m-revenue">$0</p></div>
+      <div class="card metric"><h3>COGS</h3><p id="m-cogs">$0</p></div>
+      <div class="card metric"><h3>Gross Profit</h3><p id="m-gross">$0</p></div>
+      <div class="card metric"><h3>Net Profit</h3><p id="m-net">$0</p></div>
+      <div class="card metric"><h3>Margin</h3><p id="m-margin">0%</p></div>
+      <div class="card metric"><h3>Avg Order</h3><p id="m-aov">$0</p></div>
+    </section>
+    <section class="card">
+      <h2>Trends (Last 30 Days)</h2>
+      <canvas id="chartRevenue" height="140"></canvas>
+    </section>
+    <section class="card">
+      <h2>Top Flavors</h2>
+      <ul id="topFlavors" class="simple-list"></ul>
+    </section>
+  </template>
+
+  <template id="tpl-sales">
+    <section class="card">
+      <h2>Log Sale</h2>
+      <form id="saleForm" class="grid-form" autocomplete="off">
+        <label>Date <input type="date" name="date" required /></label>
+        <label>Product
+          <select name="productId" required></select>
+        </label>
+        <label>Qty <input type="number" name="quantity" min="1" value="1" required /></label>
+        <label>Unit Price ($)<input type="number" name="unitPrice" step="0.01" required /></label>
+        <label>Discount ($)<input type="number" name="discount" step="0.01" value="0" /></label>
+        <label>Notes <input type="text" name="notes" maxlength="120" /></label>
+        <button type="submit">Add Sale</button>
+      </form>
+    </section>
+    <section class="card">
+      <h2>Sales <small id="salesCount"></small></h2>
+      <div class="toolbar">
+        <input type="date" id="salesFrom" />
+        <input type="date" id="salesTo" />
+        <button id="filterSalesBtn">Filter</button>
+        <button id="clearSalesFilterBtn">Clear</button>
+      </div>
+      <table class="data-table" id="salesTable">
+        <thead>
+          <tr>
+            <th>Date</th><th>Product</th><th>Qty</th><th>Unit $</th><th>Discount</th><th>Total $</th><th>Notes</th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </template>
+
+  <template id="tpl-products">
+    <section class="card">
+      <h2>Products / Flavors</h2>
+      <form id="productForm" class="grid-form" autocomplete="off">
+        <label>Name <input name="name" required maxlength="40" /></label>
+        <label>Cost per Unit ($)<input type="number" step="0.01" name="unitCost" required /></label>
+        <label>Default Price ($)<input type="number" step="0.01" name="unitPrice" required /></label>
+        <button type="submit">Add Product</button>
+      </form>
+    </section>
+    <section class="card">
+      <h2>Product List</h2>
+      <table class="data-table" id="productsTable">
+        <thead>
+          <tr><th>Name</th><th>Cost</th><th>Price</th><th>Margin%</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </template>
+
+  <template id="tpl-expenses">
+    <section class="card">
+      <h2>Log Expense</h2>
+      <form id="expenseForm" class="grid-form" autocomplete="off">
+        <label>Date <input type="date" name="date" required /></label>
+        <label>Category
+          <select name="category" required>
+            <option value="ingredients">Ingredients</option>
+            <option value="packaging">Packaging</option>
+            <option value="tools">Tools</option>
+            <option value="marketing">Marketing</option>
+            <option value="misc">Misc</option>
+          </select>
+        </label>
+        <label>Amount ($)<input type="number" name="amount" step="0.01" required /></label>
+        <label>Notes <input type="text" name="notes" maxlength="120" /></label>
+        <button type="submit">Add Expense</button>
+      </form>
+    </section>
+    <section class="card">
+      <h2>Expenses <small id="expenseTotal"></small></h2>
+      <div class="toolbar">
+        <input type="date" id="expFrom" />
+        <input type="date" id="expTo" />
+        <button id="filterExpBtn">Filter</button>
+        <button id="clearExpFilterBtn">Clear</button>
+      </div>
+      <table class="data-table" id="expensesTable">
+        <thead>
+          <tr><th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </template>
+
+  <template id="tpl-data">
+    <section class="card">
+      <h2>Data & Backup</h2>
+      <button id="exportJsonBtn">Export JSON</button>
+      <button id="exportCsvBtn">Export CSV (Sales)</button>
+      <label>Import JSON <input type="file" id="importJsonInput" accept="application/json" /></label>
+      <button id="resetAllBtn" class="danger">⚠ Reset All Data</button>
+      <p class="note">All data is stored locally in your browser. Export regularly for backup.</p>
+    </section>
+    <section class="card">
+      <h2>System Info</h2>
+      <ul id="sysInfo" class="simple-list"></ul>
+    </section>
+  </template>
+
+  <script type="module" src="assets/js/app.js"></script>
+</body>
+</html>
