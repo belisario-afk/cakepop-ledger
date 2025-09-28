@@ -6,11 +6,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="description" content="SmallBatch: Offline-first sales, cost & ingredient tracking for small food businesses." />
   <meta name="theme-color" content="#0d9488" id="metaThemeColor" />
+  <!-- Updated CSP: added accounts.google.com & *.gstatic.com to style-src -->
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self' https://accounts.google.com https://*.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.gstatic.com; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src https://accounts.google.com;">
-  <link rel="manifest" href="manifest.webmanifest?v=5" />
+        content="default-src 'self'; script-src 'self' https://accounts.google.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://accounts.google.com https://*.gstatic.com; img-src 'self' data: https://*.gstatic.com; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src https://accounts.google.com;">
+  <link rel="manifest" href="manifest.webmanifest?v=6" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="assets/icons/icon-512.png" />
   <link rel="icon" type="image/svg+xml" href="assets/icons/icon-source.svg" />
-  <link rel="stylesheet" href="assets/css/styles.css?v=5" />
+  <link rel="stylesheet" href="assets/css/styles.css?v=6" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif; margin:0; background:#0f1617; color:#f2f7f7;}
@@ -27,7 +30,7 @@
         <img id="logoImage" alt="Logo" style="display:none;width:40px;height:40px;border-radius:12px;object-fit:cover" />
         <div class="brand-text">
           <h1 id="brandName">SmallBatch</h1>
-          <p id="brandTagline" class="slogan">Sales • Costs • Ingredients</p>
+            <p id="brandTagline" class="slogan">Sales • Costs • Ingredients</p>
         </div>
       </div>
       <nav class="nav" id="nav" aria-label="Main navigation">
@@ -53,7 +56,6 @@
     </header>
 
     <div id="bannerArea" class="banner-area" aria-live="polite"></div>
-
     <div id="parallaxLayer" class="parallax-layer" aria-hidden="true"></div>
 
     <main id="viewContainer" class="views" tabindex="-1">
@@ -64,7 +66,7 @@
       <small>
         &copy; <span id="year"></span> <span id="footerBrand">SmallBatch</span>
         · <a href="#" id="exportJsonLink">Export JSON</a>
-        · <a href="#" id="backupNowLink" title="Trigger a backup reminder recalculation">Backup?</a>
+        · <a href="#" id="backupNowLink" title="Trigger backup reminder check">Backup?</a>
       </small>
     </footer>
 
@@ -78,7 +80,7 @@
     <!-- Floating Quick Add Button -->
     <button id="quickAddBtn" class="quick-add-btn" aria-label="Quick add sale or expense" title="Quick Add (Alt+S / Alt+E)">＋</button>
 
-    <!-- Quick Modal -->
+    <!-- Quick Modal (improved close & auto-close toggle) -->
     <div id="quickModal" class="quick-modal" hidden>
       <div class="qm-backdrop" data-close></div>
       <div class="qm-panel" role="dialog" aria-modal="true" aria-labelledby="qmTitle">
@@ -100,6 +102,9 @@
               <label>Lock Date
                 <input type="checkbox" name="lockDate" />
               </label>
+              <label>Auto-Close
+                <input type="checkbox" name="autoClose" checked />
+              </label>
             </div>
             <label>Product
               <select name="productId" required></select>
@@ -119,42 +124,51 @@
             <label>Notes
               <input name="notes" maxlength="120" />
             </label>
-            <button type="submit" class="primary">Add Sale (Enter)</button>
+            <div class="qm-row">
+              <button type="submit" class="primary">Add Sale (Enter)</button>
+              <button type="button" class="secondary" data-close>Close</button>
+            </div>
           </form>
 
-            <!-- Expense Form -->
-            <form id="quickExpenseForm" class="qm-form" autocomplete="off" hidden data-pane="expense">
-              <div class="qm-row">
-                <label>Date
-                  <input type="date" name="date" required />
-                </label>
-                <label>Category
-                  <select name="category" required>
-                    <option value="ingredients">Ingredients</option>
-                    <option value="packaging">Packaging</option>
-                    <option value="tools">Tools</option>
-                    <option value="marketing">Marketing</option>
-                    <option value="misc">Misc</option>
-                  </select>
-                </label>
-              </div>
-              <div class="qm-row">
-                <label>Amount ($)
-                  <input type="number" name="amount" step="0.01" required inputmode="decimal" />
-                </label>
-                <label>Notes
-                  <input name="notes" maxlength="120" />
-                </label>
-              </div>
+          <!-- Expense Form -->
+          <form id="quickExpenseForm" class="qm-form" autocomplete="off" hidden data-pane="expense">
+            <div class="qm-row">
+              <label>Date
+                <input type="date" name="date" required />
+              </label>
+              <label>Category
+                <select name="category" required>
+                  <option value="ingredients">Ingredients</option>
+                  <option value="packaging">Packaging</option>
+                  <option value="tools">Tools</option>
+                  <option value="marketing">Marketing</option>
+                  <option value="misc">Misc</option>
+                </select>
+              </label>
+              <label>Auto-Close
+                <input type="checkbox" name="autoClose" checked />
+              </label>
+            </div>
+            <div class="qm-row">
+              <label>Amount ($)
+                <input type="number" name="amount" step="0.01" required inputmode="decimal" />
+              </label>
+              <label>Notes
+                <input name="notes" maxlength="120" />
+              </label>
+            </div>
+            <div class="qm-row">
               <button type="submit" class="primary">Add Expense (Enter)</button>
-            </form>
+              <button type="button" class="secondary" data-close>Close</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Templates (same as previous message; unchanged aside from index modifications) -->
-  <!-- Keep previously supplied template blocks for dashboard/products/etc. -->
-  <script type="module" src="assets/js/app.js?v=5"></script>
+  <!-- Your existing template blocks (dashboard/products/ingredients/etc.) remain as before -->
+
+  <script type="module" src="assets/js/app.js?v=6"></script>
 </body>
 </html>

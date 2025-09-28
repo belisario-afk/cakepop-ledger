@@ -1,14 +1,13 @@
-/* Resilient SW – Quick Wins version bump */
-const VERSION='smallbatch-prod-1.3.4';
+/* Version bumped for CSP + modal fix + icon fetch update */
+const VERSION='smallbatch-prod-1.3.5';
 const CACHE=VERSION;
-
 const ASSETS=[
   './',
   './index.html',
   './offline.html',
-  './manifest.webmanifest?v=5',
-  './assets/css/styles.css?v=5',
-  './assets/js/app.js?v=5',
+  './manifest.webmanifest?v=6',
+  './assets/css/styles.css?v=6',
+  './assets/js/app.js?v=6',
   './assets/js/ui.js',
   './assets/js/utils.js',
   './assets/js/auth.js',
@@ -22,13 +21,15 @@ const ASSETS=[
   './assets/js/user-settings.js',
   './assets/js/theme.js',
   './assets/js/parallax.js',
-  './assets/js/pwa.js'
+  './assets/js/pwa.js',
+  './assets/icons/icon-192.png',
+  './assets/icons/icon-512.png'
 ];
 
 self.addEventListener('install', e=>{
   e.waitUntil((async()=>{
     const cache=await caches.open(CACHE);
-    for (const url of ASSETS){
+    for(const url of ASSETS){
       try { await cache.add(url); }
       catch(err){ console.warn('[SW] Cache fail', url, err); }
     }
