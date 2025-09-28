@@ -6,14 +6,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="description" content="SmallBatch: Offline-first sales, cost & ingredient tracking for small food businesses." />
   <meta name="theme-color" content="#0d9488" id="metaThemeColor" />
-  <!-- CSP updated to allow Google Identity styles -->
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self' https://accounts.google.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://accounts.google.com https://*.gstatic.com; img-src 'self' data: https://*.gstatic.com; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src https://accounts.google.com;">
-  <link rel="manifest" href="manifest.webmanifest?v=6" />
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png" />
-  <link rel="icon" type="image/png" sizes="512x512" href="assets/icons/icon-512.png" />
+        content="default-src 'self'; script-src 'self' https://accounts.google.com https://*.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.gstatic.com; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src https://accounts.google.com;">
+  <link rel="manifest" href="manifest.webmanifest?v=5" />
   <link rel="icon" type="image/svg+xml" href="assets/icons/icon-source.svg" />
-  <link rel="stylesheet" href="assets/css/styles.css?v=6" />
+  <link rel="stylesheet" href="assets/css/styles.css?v=5" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif; margin:0; background:#0f1617; color:#f2f7f7;}
@@ -21,10 +18,9 @@
   </style>
 </head>
 <body>
-  <a href="#viewContainer" class="skip-link">Skip to content</a>
   <noscript>Please enable JavaScript to use SmallBatch.</noscript>
   <div id="app">
-    <header class="topbar" aria-label="Primary">
+    <header class="topbar">
       <div class="brand">
         <span class="logo" id="logoEmoji" aria-hidden="true">🧁</span>
         <img id="logoImage" alt="Logo" style="display:none;width:40px;height:40px;border-radius:12px;object-fit:cover" />
@@ -33,148 +29,143 @@
           <p id="brandTagline" class="slogan">Sales • Costs • Ingredients</p>
         </div>
       </div>
-      <nav class="nav" id="nav" aria-label="Main navigation">
-        <button data-view="dashboard" class="nav-btn active" title="Dashboard (Alt+D)">Dashboard</button>
-        <button data-view="sales" class="nav-btn" title="Sales">Sales</button>
-        <button data-view="products" class="nav-btn" title="Products (Alt+P)">Products</button>
-        <button data-view="recipes" class="nav-btn" title="Recipes (Alt+R)">Recipes</button>
-        <button data-view="ingredients" class="nav-btn" title="Ingredients (Alt+I)">Ingredients</button>
-        <button data-view="expenses" class="nav-btn" title="Expenses (Alt+X)">Expenses</button>
-        <button data-view="data" class="nav-btn" title="Data & Backup">Data</button>
-        <button data-view="settings" class="nav-btn" title="Settings">Settings</button>
+      <nav class="nav" id="nav">
+        <button data-view="dashboard" class="nav-btn active">Dashboard</button>
+        <button data-view="sales" class="nav-btn">Sales</button>
+        <button data-view="products" class="nav-btn">Products</button>
+        <button data-view="recipes" class="nav-btn">Recipes</button>
+        <button data-view="ingredients" class="nav-btn">Ingredients</button>
+        <button data-view="expenses" class="nav-btn">Expenses</button>
+        <button data-view="data" class="nav-btn">Data</button>
+        <button data-view="settings" class="nav-btn">Settings</button>
       </nav>
       <div class="control-cluster">
-        <div id="saveStatus" class="save-indicator" aria-live="polite" title="Last local save timestamp">Saved • 0s</div>
-        <button id="darkModeBtn" title="Toggle dark/light (pref)">🌓</button>
+        <button id="darkModeBtn" title="Toggle dark/light">🌓</button>
         <button id="contrastBtn" title="Toggle high contrast">🔆</button>
         <div class="auth-bar">
           <div id="gSignInContainer"></div>
           <span id="authUser" class="auth-user">Guest</span>
-          <button id="signOutBtn" style="display:none;" title="Sign out">Sign Out</button>
+          <button id="signOutBtn" style="display:none;">Sign Out</button>
         </div>
       </div>
     </header>
 
-    <div id="bannerArea" class="banner-area" aria-live="polite"></div>
     <div id="parallaxLayer" class="parallax-layer" aria-hidden="true"></div>
 
-    <main id="viewContainer" class="views" tabindex="-1">
+    <main id="viewContainer" class="views">
       <div class="loading">Loading…</div>
     </main>
 
     <footer class="footer">
-      <small>
-        &copy; <span id="year"></span> <span id="footerBrand">SmallBatch</span>
-        · <a href="#" id="exportJsonLink">Export JSON</a>
-        · <a href="#" id="backupNowLink" title="Trigger backup reminder check">Backup?</a>
-      </small>
+      <small>&copy; <span id="year"></span> <span id="footerBrand">SmallBatch</span> · <a href="#" id="exportJsonLink">Export JSON</a></small>
     </footer>
 
-    <nav class="bottom-nav" id="bottomNav" aria-label="Quick navigation">
-      <button data-view="dashboard" class="nav-btn" title="Dashboard">📊</button>
-      <button data-view="sales" class="nav-btn" title="Sales">🛒</button>
-      <button data-view="products" class="nav-btn" title="Products">🍱</button>
-      <button data-view="settings" class="nav-btn" title="Settings">⚙️</button>
+    <nav class="bottom-nav" id="bottomNav">
+      <button data-view="dashboard" class="nav-btn">📊</button>
+      <button data-view="sales" class="nav-btn">🛒</button>
+      <button data-view="products" class="nav-btn">🍱</button>
+      <button data-view="settings" class="nav-btn">⚙️</button>
     </nav>
-
-    <!-- Floating Quick Add Button -->
-    <button id="quickAddBtn"
-            class="quick-add-btn"
-            aria-label="Quick add sale or expense"
-            aria-expanded="false"
-            title="Quick Add (Alt+S / Alt+E)">＋</button>
-
-    <!-- Quick Modal (improved close & auto-close toggle + onsubmit guards) -->
-    <div id="quickModal" class="quick-modal" hidden aria-hidden="true">
-      <div class="qm-backdrop" data-close></div>
-      <div class="qm-panel" role="dialog" aria-modal="true" aria-labelledby="qmTitle">
-        <header class="qm-header">
-          <h2 id="qmTitle">Quick Entry</h2>
-          <button class="qm-close" data-close aria-label="Close">✕</button>
-        </header>
-        <div class="qm-tabs" role="tablist">
-          <button class="qm-tab active" data-tab="sale" role="tab" aria-selected="true">Sale</button>
-          <button class="qm-tab" data-tab="expense" role="tab" aria-selected="false">Expense</button>
-        </div>
-        <div class="qm-body">
-          <!-- Sale Form -->
-          <form id="quickSaleForm" class="qm-form" autocomplete="off" data-pane="sale" onsubmit="return false">
-            <div class="qm-row">
-              <label>Date
-                <input type="date" name="date" required />
-              </label>
-              <label>Lock Date
-                <input type="checkbox" name="lockDate" />
-              </label>
-              <label>Auto-Close
-                <input type="checkbox" name="autoClose" checked />
-              </label>
-            </div>
-            <label>Product
-              <select name="productId" required></select>
-            </label>
-            <div id="recentProducts" class="recent-products" aria-label="Recent products"></div>
-            <div class="qm-row">
-              <label>Qty
-                <input type="number" name="quantity" min="1" value="1" required inputmode="decimal" />
-              </label>
-              <label>Unit Price ($)
-                <input type="number" name="unitPrice" step="0.01" required inputmode="decimal" />
-              </label>
-              <label>Discount ($)
-                <input type="number" name="discount" step="0.01" value="0" inputmode="decimal" />
-              </label>
-            </div>
-            <label>Notes
-              <input name="notes" maxlength="120" />
-            </label>
-            <div class="qm-row">
-              <button type="submit" class="primary">Add Sale (Enter)</button>
-              <button type="button" class="secondary" data-close>Cancel</button>
-              <button type="button" class="secondary" data-close>Close</button>
-            </div>
-          </form>
-
-          <!-- Expense Form -->
-          <form id="quickExpenseForm" class="qm-form" autocomplete="off" hidden data-pane="expense" onsubmit="return false">
-            <div class="qm-row">
-              <label>Date
-                <input type="date" name="date" required />
-              </label>
-              <label>Category
-                <select name="category" required>
-                  <option value="ingredients">Ingredients</option>
-                  <option value="packaging">Packaging</option>
-                  <option value="tools">Tools</option>
-                  <option value="marketing">Marketing</option>
-                  <option value="misc">Misc</option>
-                </select>
-              </label>
-              <label>Auto-Close
-                <input type="checkbox" name="autoClose" checked />
-              </label>
-            </div>
-            <div class="qm-row">
-              <label>Amount ($)
-                <input type="number" name="amount" step="0.01" required inputmode="decimal" />
-              </label>
-              <label>Notes
-                <input name="notes" maxlength="120" />
-              </label>
-            </div>
-            <div class="qm-row">
-              <button type="submit" class="primary">Add Expense (Enter)</button>
-              <button type="button" class="secondary" data-close>Cancel</button>
-              <button type="button" class="secondary" data-close>Close</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
   </div>
 
-  <!-- Existing template blocks for dashboard/products/etc. remain unchanged -->
+  <!-- (Templates from prior build; only Settings template shown with added Ambient option) -->
 
-  <script type="module" src="assets/js/app.js?v=6"></script>
+  <template id="tpl-settings">
+    <section class="card glass">
+      <h2>Store Profile</h2>
+      <form id="storeProfileForm" class="grid-form" autocomplete="off">
+        <label>Store Name <input name="storeName" maxlength="40" placeholder="e.g. Luxe Bites" /></label>
+        <label>Tagline <input name="tagline" maxlength="60" placeholder="Handcrafted Indulgence" /></label>
+        <label>Logo Image <input type="file" name="logoFile" accept="image/*" /></label>
+        <label>Emoji/Fallback <input name="logoEmoji" maxlength="4" placeholder="🧁" /></label>
+        <p class="note">Logo overrides emoji. Use square image.</p>
+        <button type="submit">Save Profile</button>
+      </form>
+    </section>
+
+    <section class="card glass">
+      <h2>Theme & Appearance</h2>
+      <form id="themeForm" class="grid-form">
+        <label>Preset
+          <select name="preset">
+            <option value="">(Current)</option>
+            <option value="default">Default</option>
+            <option value="gold">Gold</option>
+            <option value="noir">Noir</option>
+            <option value="rose">Rose</option>
+            <option value="emerald">Emerald</option>
+          </select>
+        </label>
+        <label>Primary <input type="color" name="primaryColor" value="#0d9488" /></label>
+        <label>Accent <input type="color" name="accentColor" value="#10b09f" /></label>
+        <label>Background <input type="color" name="bgColor" value="#0f1617" /></label>
+        <label>Surface <input type="color" name="elevColor" value="#1d2b2f" /></label>
+        <label>Mode
+          <select name="mode">
+            <option value="system">System</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+        <label>Glass
+          <select name="glass">
+            <option value="off">Off</option>
+            <option value="on">On</option>
+          </select>
+        </label>
+        <label>Typography
+          <select name="font">
+            <option value="system">System</option>
+            <option value="modern">Modern Sans</option>
+            <option value="serif">Elegant Serif</option>
+            <option value="rounded">Rounded</option>
+          </select>
+        </label>
+        <label>Ambient Background
+          <select name="ambient">
+            <option value="off">Off</option>
+            <option value="on">On</option>
+          </select>
+        </label>
+        <label>Background Style
+          <select name="bgStyle">
+            <option value="solid">Solid</option>
+            <option value="gradient">Gradient</option>
+            <option value="image">Image</option>
+            <option value="pattern">Pattern</option>
+          </select>
+        </label>
+        <label>Gradient CSS <input name="gradientValue" placeholder="linear-gradient(135deg,#0d9488,#10b09f)" /></label>
+        <label>Image URL <input name="imageUrl" placeholder="https://..." /></label>
+        <label>Pattern Seed <input name="patternSeed" placeholder="2025" /></label>
+        <div class="inline-buttons">
+          <button type="button" id="applyPresetBtn">Apply Preset</button>
+          <button type="button" id="previewPresetBtn">Preview Preset</button>
+          <button type="button" id="genPatternBtn">Generate Pattern</button>
+          <button type="button" id="previewThemeBtn">Preview</button>
+          <button type="submit">Save Theme</button>
+          <button type="button" id="resetThemeBtn" class="danger">Reset</button>
+        </div>
+        <div class="inline-buttons">
+          <button type="button" id="exportThemeBtn">Export Theme Preset</button>
+          <label class="file-label">Import Theme <input type="file" id="importThemeInput" accept="application/json" /></label>
+        </div>
+        <p class="note">Ambient animation is subtle (≈6 min loop). Export/import only shares branding & theme.</p>
+      </form>
+    </section>
+
+    <section class="card glass">
+      <h2>Live Preview</h2>
+      <div id="themePreview" class="theme-preview">
+        <div class="preview-card">
+          <h3>Preview Headline</h3>
+          <p>Refined interface preview.</p>
+          <button class="preview-btn">Primary Action</button>
+        </div>
+      </div>
+    </section>
+  </template>
+
+  <script type="module" src="assets/js/app.js?v=5"></script>
 </body>
 </html>

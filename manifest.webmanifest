@@ -7,7 +7,17 @@
   "theme_color": "#0d9488",
   "description": "SmallBatch: Track sales, costs & ingredients offline.",
   "icons": [
-    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAACXBIWXMAAAsTAAALEwEAmpwYAAABfklEQVR4nO3aS0oDQRBF0Q8SgCVIgCU4gCdoAAlgAJbAAJYgAgm4jR5pmU8q1dW1O77d2dtp2trp7u7u8fMkpmmmaaaZZpptxA4wQH8wLuwB9cQPPEDzBA8wQP8vnO7K0L8L1nYtyg9Vj7h3KDP0rF1gBfi8i/6eS/4fncIv+Hq3CG/h+twhv4frcIb+H63CG/h+twhv4ZWzr1yBL2tX4b/51q+2twQr7P7d6BvR9yP0Hcj/B3I/wdyP8Hcj/B3I/wdyPwRfbvXoE9bW+Cv+datvW3BSPsfzUuY91I58VX2VWrwvuwrXr1hYq6yad86f2rD3Myo837Bhv3ubOO1aXr6G+e25Qd5VTOgdzYfh7kudV0gPMEDzBA8wQP8EDzBA8wQN8cB3x7mYEzNQfAwPmYD7kYz/AecAfXEDzxA8wQP8EDzBA8wQPPwM0WQli9c7YlAAAAAElFTkSuQmCC",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAACACAYAAAD0eNT6AAAACXBIWXMAAAsTAAALEwEAmpwYAAACb0lEQVR4nO3dS2sUURSF4c+ESCJDg0iwCNYgAwaQBAsQG0hECtAgNEVQxOrzPbNzJXb1djZ2dnX5rps3a9ddc/ffqVt1VVVVVVVX1e7kChDIfwAe4BfcgHuAH3IB7gB9yAe4AfcgHuAH3IB7gJ9lZZT5m+mtEzeROX9J94v3u65+7ddnkKTNNM0000wzzTTTzGvtobq28XkGX9N3yxntw3u7rQ/0N0t7cH8S9Ld3B/EvS3dwfxL0t3cH8S9Ld3FflK2pPoN/1z99I56wr32p7gZ+imXcd7kDfrX7eH9JnvEH2XwlP9I3a4vv8SP8rd+tdsa6pDeoT/Wf3Uj3rCvfanvgn7Kd+sfG8Le9Av8rfyJPCHfI08Id8jTwh3yNPDn8vZXbfvIZ0ru6wPe4O52b+x73Nv6nmP07kfh3R67JxzN+dyH3cd7kDfh37ej/sd3ZsH9yAe4AfcgHuAH3IB7gB9yAe4AfcgHuAn1yc6gv1ic7E3W25YgP/P07kfh3R67J/xfJ3loJfn/dyb4d0euycczfncR9bOkPkO/65++k89YV77U9wM/ZTr2z4/hb3oF/lb+RJ4Q75EngTvkSeEO+RJ4c/l7K7b98jOlN3WAb3B3Ozf2Pe5t/TcR+ncj8O6PXZOObfzOI+tlSf4Bv2vf/1PnrCvfanhg6yqqqqqqqr67/gCMloXbWBpAhgAAAABJRU5ErkJggg==",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
   ]
 }

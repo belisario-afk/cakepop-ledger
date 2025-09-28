@@ -2,17 +2,17 @@ import { loadData, persist } from './storage.js';
 
 export function ensureSettings(){
   const d = loadData();
-  if (!d.settings) {
+  if (!d.settings){
     d.settings = defaults();
     persist();
   } else {
-    // fill missing fields
-    const def = defaults();
+    const def=defaults();
     d.settings.colors = { ...def.colors, ...(d.settings.colors||{}) };
     d.settings.background = { ...def.background, ...(d.settings.background||{}) };
     if (!('font' in d.settings)) d.settings.font='system';
     if (!('preset' in d.settings)) d.settings.preset='default';
     if (!('luxClass' in d.settings)) d.settings.luxClass='';
+    if (!('ambientAnimation' in d.settings)) d.settings.ambientAnimation='off';
   }
   return d.settings;
 }
@@ -28,6 +28,7 @@ function defaults(){
     font:'system',
     preset:'default',
     luxClass:'',
+    ambientAnimation:'off',
     colors:{
       primary:'#0d9488',
       accent:'#10b09f',
