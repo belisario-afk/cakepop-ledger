@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="description" content="SmallBatch: Offline-first sales, cost & ingredient tracking for small food businesses." />
   <meta name="theme-color" content="#0d9488" id="metaThemeColor" />
-  <!-- Updated CSP: added accounts.google.com & *.gstatic.com to style-src -->
+  <!-- CSP updated to allow Google Identity styles -->
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; script-src 'self' https://accounts.google.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://accounts.google.com https://*.gstatic.com; img-src 'self' data: https://*.gstatic.com; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src https://accounts.google.com;">
   <link rel="manifest" href="manifest.webmanifest?v=6" />
@@ -30,7 +30,7 @@
         <img id="logoImage" alt="Logo" style="display:none;width:40px;height:40px;border-radius:12px;object-fit:cover" />
         <div class="brand-text">
           <h1 id="brandName">SmallBatch</h1>
-            <p id="brandTagline" class="slogan">Sales • Costs • Ingredients</p>
+          <p id="brandTagline" class="slogan">Sales • Costs • Ingredients</p>
         </div>
       </div>
       <nav class="nav" id="nav" aria-label="Main navigation">
@@ -78,10 +78,14 @@
     </nav>
 
     <!-- Floating Quick Add Button -->
-    <button id="quickAddBtn" class="quick-add-btn" aria-label="Quick add sale or expense" title="Quick Add (Alt+S / Alt+E)">＋</button>
+    <button id="quickAddBtn"
+            class="quick-add-btn"
+            aria-label="Quick add sale or expense"
+            aria-expanded="false"
+            title="Quick Add (Alt+S / Alt+E)">＋</button>
 
-    <!-- Quick Modal (improved close & auto-close toggle) -->
-    <div id="quickModal" class="quick-modal" hidden>
+    <!-- Quick Modal (improved close & auto-close toggle + onsubmit guards) -->
+    <div id="quickModal" class="quick-modal" hidden aria-hidden="true">
       <div class="qm-backdrop" data-close></div>
       <div class="qm-panel" role="dialog" aria-modal="true" aria-labelledby="qmTitle">
         <header class="qm-header">
@@ -94,7 +98,7 @@
         </div>
         <div class="qm-body">
           <!-- Sale Form -->
-          <form id="quickSaleForm" class="qm-form" autocomplete="off" data-pane="sale">
+          <form id="quickSaleForm" class="qm-form" autocomplete="off" data-pane="sale" onsubmit="return false">
             <div class="qm-row">
               <label>Date
                 <input type="date" name="date" required />
@@ -126,12 +130,13 @@
             </label>
             <div class="qm-row">
               <button type="submit" class="primary">Add Sale (Enter)</button>
+              <button type="button" class="secondary" data-close>Cancel</button>
               <button type="button" class="secondary" data-close>Close</button>
             </div>
           </form>
 
           <!-- Expense Form -->
-          <form id="quickExpenseForm" class="qm-form" autocomplete="off" hidden data-pane="expense">
+          <form id="quickExpenseForm" class="qm-form" autocomplete="off" hidden data-pane="expense" onsubmit="return false">
             <div class="qm-row">
               <label>Date
                 <input type="date" name="date" required />
@@ -159,6 +164,7 @@
             </div>
             <div class="qm-row">
               <button type="submit" class="primary">Add Expense (Enter)</button>
+              <button type="button" class="secondary" data-close>Cancel</button>
               <button type="button" class="secondary" data-close>Close</button>
             </div>
           </form>
@@ -167,7 +173,7 @@
     </div>
   </div>
 
-  <!-- Your existing template blocks (dashboard/products/ingredients/etc.) remain as before -->
+  <!-- Existing template blocks for dashboard/products/etc. remain unchanged -->
 
   <script type="module" src="assets/js/app.js?v=6"></script>
 </body>
