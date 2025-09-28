@@ -46,11 +46,13 @@
         <button id="contrastBtn" title="Toggle high contrast" aria-label="Toggle high contrast mode">🔆</button>
         <div class="auth-bar">
           <div id="gSignInContainer" aria-label="Google Sign In"></div>
-          <span id="authUser" class="auth-user" aria-live="polite">Guest</span>
-          <button id="signOutBtn" style="display:none;" aria-label="Sign out">Sign Out</button>
+            <span id="authUser" class="auth-user" aria-live="polite">Guest</span>
+            <button id="signOutBtn" style="display:none;" aria-label="Sign out">Sign Out</button>
         </div>
       </div>
     </header>
+
+    <div id="parallaxLayer" class="parallax-layer" aria-hidden="true"></div>
 
     <main id="viewContainer" class="views" role="main">
       <div class="loading">Loading SmallBatch...</div>
@@ -71,8 +73,7 @@
     </nav>
   </div>
 
-  <!-- Existing templates retained (omitted for brevity except new Settings) -->
-  <!-- ... other templates from previous version ... -->
+  <!-- (Other templates from previous version remain) -->
 
   <template id="tpl-settings">
     <section class="card glass">
@@ -84,7 +85,7 @@
         <label>Emoji (fallback)
           <input name="logoEmoji" maxlength="4" placeholder="🧁" />
         </label>
-        <p class="note">Logo overrides emoji. Use square images for best results.</p>
+        <p class="note">Logo overrides emoji. Use a square image for best results.</p>
         <button type="submit">Save Profile</button>
       </form>
     </section>
@@ -92,6 +93,16 @@
     <section class="card glass">
       <h2>Theme & Appearance</h2>
       <form id="themeForm" class="grid-form appearance-form">
+        <label>Preset
+          <select name="preset">
+            <option value="">(Custom / Current)</option>
+            <option value="default">Default</option>
+            <option value="gold">Gold</option>
+            <option value="noir">Noir</option>
+            <option value="rose">Rose</option>
+            <option value="emerald">Emerald</option>
+          </select>
+        </label>
         <label>Primary Color <input type="color" name="primaryColor" value="#0d9488" /></label>
         <label>Accent Color <input type="color" name="accentColor" value="#10b09f" /></label>
         <label>Background Base <input type="color" name="bgColor" value="#0f1617" /></label>
@@ -109,6 +120,14 @@
             <option value="on">On</option>
           </select>
         </label>
+        <label>Typography
+          <select name="font">
+            <option value="system">System Sans</option>
+            <option value="modern">Modern Sans (Inter)</option>
+            <option value="serif">Elegant Serif (Merriweather)</option>
+            <option value="rounded">Rounded (Nunito)</option>
+          </select>
+        </label>
         <label>Background Style
           <select name="bgStyle">
             <option value="solid">Solid</option>
@@ -121,12 +140,20 @@
         <label>Image URL <input name="imageUrl" placeholder="https://..." /></label>
         <label>Pattern Seed <input name="patternSeed" placeholder="e.g. 2025" /></label>
         <div class="inline-buttons">
+          <button type="button" id="applyPresetBtn">Apply Preset</button>
+          <button type="button" id="previewPresetBtn">Preview Preset</button>
           <button type="button" id="genPatternBtn">Generate Pattern</button>
           <button type="button" id="previewThemeBtn">Preview</button>
           <button type="submit">Save Theme</button>
           <button type="button" id="resetThemeBtn" class="danger">Reset</button>
         </div>
-        <p class="note">Pattern creates a luxe geometric backdrop. Glass adds translucency. Use gradient or image for a premium look.</p>
+        <div class="inline-buttons">
+          <button type="button" id="exportThemeBtn">Export Theme Preset</button>
+          <label class="file-label">
+            Import Theme <input type="file" id="importThemeInput" accept="application/json" />
+          </label>
+        </div>
+        <p class="note">Presets give a luxury aesthetic. Export/import only shares theme & branding — not your sales data.</p>
       </form>
     </section>
 
@@ -135,7 +162,7 @@
       <div id="themePreview" class="theme-preview">
         <div class="preview-card">
           <h3>Headline</h3>
-          <p>Your premium interface preview. Elegant contrast & clarity.</p>
+            <p>Refined UI. Confident branding. Premium presence.</p>
           <button class="preview-btn">Primary Action</button>
         </div>
       </div>

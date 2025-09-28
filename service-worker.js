@@ -1,4 +1,4 @@
-const VERSION = 'smallbatch-1.3.0';
+const VERSION = 'smallbatch-1.3.1';
 const CACHE = VERSION;
 const ASSETS = [
   './',
@@ -20,6 +20,7 @@ const ASSETS = [
   './assets/js/auth.js',
   './assets/js/theme.js',
   './assets/js/user-settings.js',
+  './assets/js/parallax.js',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png'
 ];

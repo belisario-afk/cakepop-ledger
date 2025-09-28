@@ -1,34 +1,48 @@
-// Separate module to handle user personalization settings
 import { loadData, persist } from './storage.js';
 
 export function ensureSettings() {
   const d = loadData();
   if (!d.settings) {
-    d.settings = {
-      storeName: 'SmallBatch',
-      tagline: 'Sales • Costs • Ingredients',
-      logoEmoji: '🧁',
-      logoDataUrl: '',
-      mode: 'system',
-      glass: 'off',
-      colors: {
-        primary:'#0d9488',
-        accent:'#10b09f',
-        bg:'#0f1617',
-        elev:'#1d2b2f'
-      },
-      background:{
-        mode:'solid',
-        solid:'#0f1617',
-        gradient:'linear-gradient(135deg,#0d9488,#10b09f)',
-        imageUrl:'',
-        patternSeed:'',
-        patternDataUrl:''
-      }
-    };
+    d.settings = baseDefaults();
     persist();
+  } else {
+    // ensure new fields exist
+    const def = baseDefaults();
+    d.settings.colors = { ...def.colors, ...(d.settings.colors||{}) };
+    d.settings.background = { ...def.background, ...(d.settings.background||{}) };
+    if (!('font' in d.settings)) d.settings.font = 'system';
+    if (!('preset' in d.settings)) d.settings.preset = '';
+    if (!('luxClass' in d.settings)) d.settings.luxClass = '';
   }
   return d.settings;
+}
+
+function baseDefaults(){
+  return {
+    storeName: 'SmallBatch',
+    tagline: 'Sales • Costs • Ingredients',
+    logoEmoji: '🧁',
+    logoDataUrl: '',
+    mode: 'system',
+    glass: 'off',
+    font: 'system',
+    preset: 'default',
+    luxClass:'',
+    colors: {
+      primary:'#0d9488',
+      accent:'#10b09f',
+      bg:'#0f1617',
+      elev:'#1d2b2f'
+    },
+    background:{
+      mode:'solid',
+      solid:'#0f1617',
+      gradient:'linear-gradient(135deg,#0d9488,#10b09f)',
+      imageUrl:'',
+      patternSeed:'',
+      patternDataUrl:''
+    }
+  };
 }
 
 export function getSettings() {
