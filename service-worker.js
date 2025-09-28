@@ -1,4 +1,4 @@
-const VERSION = 'smallbatch-1.2.0';
+const VERSION = 'smallbatch-1.3.0';
 const CACHE = VERSION;
 const ASSETS = [
   './',
@@ -18,6 +18,8 @@ const ASSETS = [
   './assets/js/crypto.js',
   './assets/js/gist-backup.js',
   './assets/js/auth.js',
+  './assets/js/theme.js',
+  './assets/js/user-settings.js',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png'
 ];
@@ -31,9 +33,7 @@ self.addEventListener('activate', e=>{
   e.waitUntil(
     caches.keys().then(keys=>Promise.all(
       keys.filter(k=>k.startsWith('smallbatch-') && k!==CACHE).map(k=>caches.delete(k))
-    )).then(()=>caches.keys().then(keys=>Promise.all(
-      keys.filter(k=>k.startsWith('cakepop-ledger-')).map(k=>caches.delete(k))
-    )))
+    ))
   );
   self.clients.claim();
 });

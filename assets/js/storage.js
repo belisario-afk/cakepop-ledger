@@ -1,5 +1,4 @@
-// Storage with migration from Cake Pop keys to SmallBatch keys.
-// Per-user namespace (Google sub or guest).
+// (Modified to expose persist + no changes to existing logic except adding settings field if missing)
 import { getActiveUser } from './auth.js';
 
 const NEW_BASE_KEY = 'smallbatch-ledger-v2';
@@ -18,6 +17,7 @@ const defaultData = () => ({
   recipes: {},
   sales: [],
   expenses: [],
+  settings: null,
   meta: { created: Date.now(), lastExport:null, lastSaved:null, migrated:true, brand:'smallbatch' }
 });
 
@@ -26,7 +26,7 @@ let _data = null;
 function attemptMigration(targetKey){
   if (localStorage.getItem(targetKey)) return;
   for (const legacyBase of LEGACY_KEYS){
-    const legacyKey = `${legacyBase}::guest`; // only guest namespace previously
+    const legacyKey = `${legacyBase}::guest`;
     const raw = localStorage.getItem(legacyKey);
     if (raw){
       try {
@@ -35,6 +35,7 @@ function attemptMigration(targetKey){
         parsed.meta.migratedFrom = legacyBase;
         parsed.meta.migratedAt = Date.now();
         parsed.meta.brand = 'smallbatch';
+        if (!parsed.settings) parsed.settings = null;
         localStorage.setItem(targetKey, JSON.stringify(parsed));
         return;
       } catch {}
@@ -59,6 +60,7 @@ export function loadData(){
       if (!_data.version) _data.version = 2;
       if (!_data.ingredients) _data.ingredients = [];
       if (!_data.recipes) _data.recipes = {};
+      if (_data.settings === undefined) _data.settings = null;
     }
   } catch(e){
     console.warn('Storage load error; resetting', e);
@@ -151,6 +153,7 @@ export function importJson(obj){
   if (!_data.version) _data.version = 2;
   if (!_data.ingredients) _data.ingredients = [];
   if (!_data.recipes) _data.recipes = {};
+  if (_data.settings === undefined) _data.settings = null;
   persist();
 }
 

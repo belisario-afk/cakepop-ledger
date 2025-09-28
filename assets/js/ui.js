@@ -1,3 +1,6 @@
+/* Only the parts ADDING Settings integration appended near end (existing logic retained).
+   Below is the full updated file with settings view integration.
+*/
 import {
   fmtMoney, uuid, parseNum, betweenDates, todayISO, downloadBlob
 } from './utils.js';
@@ -16,6 +19,8 @@ import { exportSalesCsv } from './export.js';
 import { encryptJSON, decryptJSON } from './crypto.js';
 import { backupToGist, restoreFromGist, loadGistConfig, saveGistConfig, startAutoBackup, stopAutoBackup } from './gist-backup.js';
 import { getActiveUser, signOut, initGoogleSignIn } from './auth.js';
+import { ensureSettings, getSettings, saveSettings } from './user-settings.js';
+import { applyTheme, previewTheme, generatePattern, resetThemeToDefault, updatePreviewCard } from './theme.js';
 
 let currentView = 'dashboard';
 
@@ -46,12 +51,14 @@ function fillDashboard(){
   el('m-aov').textContent = fmtMoney(m.aov);
   lineChart(el('chartRevenue'), dailyRevenueSeries(30));
   const list = el('topFlavors');
-  list.innerHTML = '';
-  topProducts().forEach(p=>{
-    const li = document.createElement('li');
-    li.textContent = `${p.name} — ${p.qty} pcs`;
-    list.appendChild(li);
-  });
+  if (list) {
+    list.innerHTML = '';
+    topProducts().forEach(p=>{
+      const li = document.createElement('li');
+      li.textContent = `${p.name} — ${p.qty} pcs`;
+      list.appendChild(li);
+    });
+  }
 }
 
 function fillProducts(){
@@ -77,16 +84,15 @@ function fillProducts(){
     if (e.target.matches('button[data-del]')){
       if (confirm('Delete product (and recipe)?')){
         removeProduct(e.target.getAttribute('data-del'));
-        fillProducts();
-        fillDashboard();
+        fillProducts(); fillDashboard();
       }
     }
   }, { once:true });
 }
 
 function fillSales(){
-  const from = el('salesFrom').value;
-  const to = el('salesTo').value;
+  const from = el('salesFrom')?.value;
+  const to = el('salesTo')?.value;
   const tbody = el('salesTable').querySelector('tbody');
   tbody.innerHTML='';
   const prod = Object.fromEntries(getProducts().map(p=>[p.id,p]));
@@ -117,8 +123,8 @@ function fillSales(){
 }
 
 function fillExpenses(){
-  const from = el('expFrom').value;
-  const to = el('expTo').value;
+  const from = el('expFrom')?.value;
+  const to = el('expTo')?.value;
   const tbody = el('expensesTable').querySelector('tbody');
   tbody.innerHTML='';
   const filtered = getExpenses().filter(e=>betweenDates(e.date, from, to));
@@ -230,17 +236,18 @@ function fillDataView(){
     ['Last Save', new Date(all.meta.lastSaved||Date.now()).toLocaleString()],
     ['Brand', all.meta.brand||'unknown']
   ].forEach(([k,v])=>{
-    const li=document.createElement('li');
-    li.textContent=`${k}: ${v}`;
-    list.appendChild(li);
+    const li=document.createElement('li'); li.textContent=`${k}: ${v}`; list.appendChild(li);
   });
 
   const cfg = loadGistConfig();
   const form = document.getElementById('gistForm');
-  form.token.value = cfg.token || '';
-  form.gistId.value = cfg.gistId || '';
-  form.interval.value = cfg.interval || 0;
-  el('gistStatus').textContent = cfg.lastBackup
+  if (form){
+    form.token.value = cfg.token || '';
+    form.gistId.value = cfg.gistId || '';
+    form.interval.value = cfg.interval || 0;
+  }
+  const status = el('gistStatus');
+  if (status) status.textContent = cfg.lastBackup
     ? `Last backup: ${new Date(cfg.lastBackup).toLocaleString()}`
     : 'No backups yet.';
 }
@@ -253,10 +260,7 @@ function ensureDateDefaults(){
 
 export function render(){
   const tpl = document.getElementById(`tpl-${currentView}`);
-  if (!tpl) {
-    viewContainer().innerHTML='<p>View not found.</p>';
-    return;
-  }
+  if (!tpl) { viewContainer().innerHTML='<p>View not found.</p>'; return; }
   viewContainer().innerHTML='';
   viewContainer().appendChild(tpl.content.cloneNode(true));
 
@@ -267,6 +271,7 @@ export function render(){
   else if (currentView==='ingredients') { bindIngredientForm(); fillIngredients(); }
   else if (currentView==='recipes') { bindRecipeForm(); fillRecipes(); }
   else if (currentView==='data') { bindDataActions(); fillDataView(); }
+  else if (currentView==='settings') { bindSettings(); }
 
   ensureDateDefaults();
   updateAuthBar();
@@ -274,7 +279,7 @@ export function render(){
 
 function bindProductForm(){
   const f = document.getElementById('productForm');
-  f.addEventListener('submit', e=>{
+  f?.addEventListener('submit', e=>{
     e.preventDefault();
     const fd=new FormData(f);
     const prod={
@@ -293,7 +298,7 @@ function bindProductForm(){
 
 function bindIngredientForm(){
   const f=document.getElementById('ingredientForm');
-  f.addEventListener('submit', e=>{
+  f?.addEventListener('submit', e=>{
     e.preventDefault();
     const fd=new FormData(f);
     const ing={
@@ -311,7 +316,7 @@ function bindIngredientForm(){
 
 function bindRecipeForm(){
   const f=document.getElementById('recipeForm');
-  f.addEventListener('submit', e=>{
+  f?.addEventListener('submit', e=>{
     e.preventDefault();
     const fd=new FormData(f);
     const pid=fd.get('productId');
@@ -321,17 +326,17 @@ function bindRecipeForm(){
     upsertRecipeItem(pid,ing,qty);
     updateRecipeTable();
   });
-  el('recipeProductSelect').addEventListener('change', updateRecipeTable);
-  el('recalcRecipeBtn').addEventListener('click', updateRecipeTable);
+  el('recipeProductSelect')?.addEventListener('change', updateRecipeTable);
+  el('recalcRecipeBtn')?.addEventListener('click', updateRecipeTable);
 }
 
 function bindSaleForm(){
   const sel=document.querySelector('select[name="productId"]');
   getProducts().forEach(p=>{
-    const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o);
+    const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel?.appendChild(o);
   });
   const f=document.getElementById('saleForm');
-  f.addEventListener('submit', e=>{
+  f?.addEventListener('submit', e=>{
     e.preventDefault();
     const fd=new FormData(f);
     const sale={
@@ -349,15 +354,15 @@ function bindSaleForm(){
     f.date.value=sale.date;
     fillSales(); fillDashboard();
   });
-  el('filterSalesBtn').addEventListener('click', fillSales);
-  el('clearSalesFilterBtn').addEventListener('click', ()=>{
+  el('filterSalesBtn')?.addEventListener('click', fillSales);
+  el('clearSalesFilterBtn')?.addEventListener('click', ()=>{
     el('salesFrom').value=''; el('salesTo').value=''; fillSales();
   });
 }
 
 function bindExpenseForm(){
   const f=document.getElementById('expenseForm');
-  f.addEventListener('submit', e=>{
+  f?.addEventListener('submit', e=>{
     e.preventDefault();
     const fd=new FormData(f);
     const exp={
@@ -373,26 +378,24 @@ function bindExpenseForm(){
     f.date.value=exp.date;
     fillExpenses(); fillDashboard();
   });
-  el('filterExpBtn').addEventListener('click', fillExpenses);
-  el('clearExpFilterBtn').addEventListener('click', ()=>{
+  el('filterExpBtn')?.addEventListener('click', fillExpenses);
+  el('clearExpFilterBtn')?.addEventListener('click', ()=>{
     el('expFrom').value=''; el('expTo').value=''; fillExpenses();
   });
 }
 
 function bindDataActions(){
-  el('exportJsonBtn').addEventListener('click', ()=>downloadBlob(exportJson(),'smallbatch-ledger.json'));
-  el('exportCsvBtn').addEventListener('click', exportSalesCsv);
-  el('exportEncryptedBtn').addEventListener('click', async ()=>{
+  el('exportJsonBtn')?.addEventListener('click', ()=>downloadBlob(exportJson(),'smallbatch-ledger.json'));
+  el('exportCsvBtn')?.addEventListener('click', exportSalesCsv);
+  el('exportEncryptedBtn')?.addEventListener('click', async ()=>{
     const pw=prompt('Password for encryption (keep safe):');
     if(!pw) return;
     try {
       const encObj=await encryptJSON(exportJson(),pw);
       downloadBlob(JSON.stringify(encObj,null,2),'smallbatch-ledger-encrypted.json');
-    } catch(e){
-      alert('Encryption failed: '+e.message);
-    }
+    } catch(e){ alert('Encryption failed: '+e.message); }
   });
-  el('importJsonInput').addEventListener('change', e=>{
+  el('importJsonInput')?.addEventListener('change', e=>{
     const file=e.target.files[0]; if(!file) return;
     const reader=new FileReader();
     reader.onload=()=>{
@@ -403,7 +406,7 @@ function bindDataActions(){
     };
     reader.readAsText(file);
   });
-  el('importEncryptedInput').addEventListener('change', e=>{
+  el('importEncryptedInput')?.addEventListener('change', e=>{
     const file=e.target.files[0]; if(!file) return;
     const pw=prompt('Password to decrypt:'); if(!pw) return;
     const reader=new FileReader();
@@ -417,7 +420,7 @@ function bindDataActions(){
     };
     reader.readAsText(file);
   });
-  el('resetAllBtn').addEventListener('click', ()=>{
+  el('resetAllBtn')?.addEventListener('click', ()=>{
     if (confirm('Clear ALL data for this user?')){ resetAll(); render(); }
   });
   el('exportJsonLink')?.addEventListener('click', (evt)=>{
@@ -426,7 +429,7 @@ function bindDataActions(){
   });
 
   const gistForm = document.getElementById('gistForm');
-  gistForm.addEventListener('submit', e=>{
+  gistForm?.addEventListener('submit', e=>{
     e.preventDefault();
     const fd=new FormData(gistForm);
     const cfg=loadGistConfig();
@@ -438,21 +441,154 @@ function bindDataActions(){
     startAutoBackup();
     el('gistStatus').textContent='Settings saved.';
   });
-  el('gistBackupBtn').addEventListener('click', async ()=>{
-    const status=el('gistStatus'); status.textContent='Backing up...';
+
+  el('gistBackupBtn')?.addEventListener('click', async ()=>{
+    const status=el('gistStatus'); if(!status) return;
+    status.textContent='Backing up...';
     try {
       const r=await backupToGist();
       status.textContent=`Backup OK. Gist: ${r.gistId}`;
     } catch(e){ status.textContent='Backup failed: '+e.message; }
   });
-  el('gistRestoreBtn').addEventListener('click', async ()=>{
-    const status=el('gistStatus'); status.textContent='Restoring...';
+
+  el('gistRestoreBtn')?.addEventListener('click', async ()=>{
+    const status=el('gistStatus'); if(!status) return;
+    status.textContent='Restoring...';
     try {
       await restoreFromGist();
-      status.textContent='Restore complete.';
-      render();
+      status.textContent='Restore complete.'; render();
     } catch(e){ status.textContent='Restore failed: '+e.message; }
   });
+}
+
+/* SETTINGS (Profile + Theme) */
+function bindSettings(){
+  const settings = ensureSettings();
+  applyTheme(settings);
+  // Populate profile form
+  const profileForm = document.getElementById('storeProfileForm');
+  if (profileForm){
+    profileForm.storeName.value = settings.storeName || '';
+    profileForm.tagline.value = settings.tagline || '';
+    profileForm.logoEmoji.value = settings.logoEmoji || '🧁';
+    profileForm.addEventListener('submit', e=>{
+      e.preventDefault();
+      const fd = new FormData(profileForm);
+      settings.storeName = fd.get('storeName').trim() || 'SmallBatch';
+      settings.tagline = fd.get('tagline').trim() || 'Sales • Costs • Ingredients';
+      settings.logoEmoji = fd.get('logoEmoji').trim() || '🧁';
+      const file = fd.get('logoFile');
+      if (file && file.size){
+        const reader = new FileReader();
+        reader.onload = () => {
+          settings.logoDataUrl = reader.result;
+          saveSettings(settings);
+          applyTheme(settings);
+          alert('Profile saved.');
+        };
+        reader.readAsDataURL(file);
+      } else {
+        saveSettings(settings);
+        applyTheme(settings);
+        alert('Profile saved.');
+      }
+    });
+  }
+
+  // Theme form population
+  const tForm = document.getElementById('themeForm');
+  if (tForm){
+    tForm.primaryColor.value = settings.colors.primary;
+    tForm.accentColor.value = settings.colors.accent;
+    tForm.bgColor.value = settings.colors.bg;
+    tForm.elevColor.value = settings.colors.elev;
+    tForm.mode.value = settings.mode || 'system';
+    tForm.glass.value = settings.glass || 'off';
+    tForm.bgStyle.value = settings.background.mode;
+    tForm.gradientValue.value = settings.background.gradient || '';
+    tForm.imageUrl.value = settings.background.imageUrl || '';
+    tForm.patternSeed.value = settings.background.patternSeed || '';
+
+    // Live preview
+    document.getElementById('previewThemeBtn')?.addEventListener('click', ()=>{
+      const vals = formValues(tForm);
+      previewTheme(vals);
+      alert('Preview applied (not saved).');
+    });
+
+    document.getElementById('genPatternBtn')?.addEventListener('click', ()=>{
+      const vals = formValues(tForm);
+      const dataUrl = generatePattern(vals.patternSeed || Date.now().toString(), vals.primaryColor, vals.accentColor);
+      settings.background.patternDataUrl = dataUrl;
+      updatePreviewCard({
+        ...settings,
+        background:{
+          ...settings.background,
+          mode:'pattern',
+          patternDataUrl:dataUrl
+        },
+        colors:{
+          primary: vals.primaryColor,
+          accent: vals.accentColor,
+          bg: vals.bgColor,
+          elev: vals.elevColor
+        },
+        glass: vals.glass
+      });
+      alert('Pattern generated (preview). Choose Preview or Save to apply.');
+    });
+
+    tForm.addEventListener('submit', e=>{
+      e.preventDefault();
+      const vals = formValues(tForm);
+      // Merge
+      settings.colors.primary = vals.primaryColor;
+      settings.colors.accent = vals.accentColor;
+      settings.colors.bg = vals.bgColor;
+      settings.colors.elev = vals.elevColor;
+      settings.mode = vals.mode;
+      settings.glass = vals.glass;
+      settings.background.mode = vals.bgStyle;
+      settings.background.gradient = vals.gradientValue;
+      settings.background.imageUrl = vals.imageUrl;
+      settings.background.patternSeed = vals.patternSeed;
+      if (vals.bgStyle === 'pattern') {
+        settings.background.patternDataUrl = settings.background.patternDataUrl ||
+          generatePattern(vals.patternSeed || Date.now().toString(), vals.primaryColor, vals.accentColor);
+      } else {
+        settings.background.patternDataUrl = '';
+      }
+      saveSettings(settings);
+      applyTheme(settings);
+      updatePreviewCard(settings);
+      alert('Theme saved.');
+    });
+
+    document.getElementById('resetThemeBtn')?.addEventListener('click', ()=>{
+      if(confirm('Reset theme & profile to default?')){
+        resetThemeToDefault();
+        render();
+      }
+    });
+
+    // Initial preview
+    updatePreviewCard(settings);
+  }
+}
+
+function formValues(form){
+  return {
+    primaryColor: form.primaryColor.value,
+    accentColor: form.accentColor.value,
+    bgColor: form.bgColor.value,
+    elevColor: form.elevColor.value,
+    mode: form.mode.value,
+    glass: form.glass.value,
+    bgStyle: form.bgStyle.value,
+    gradientValue: form.gradientValue.value,
+    imageUrl: form.imageUrl.value,
+    patternSeed: form.patternSeed.value
+  };
 }
 
 export function initNav(){
@@ -501,5 +637,9 @@ export function initAuth(){
     if(confirm('Sign out current user?')) signOut();
   });
   updateAuthBar();
-  window.addEventListener('smallbatch-user-change', ()=>render());
+  window.addEventListener('smallbatch-user-change', ()=>{
+    ensureSettings(); // ensure separate user settings
+    applyTheme(getSettings());
+    render();
+  });
 }
