@@ -27,7 +27,9 @@ export function initGoogleSignIn(clientId){
           name: payload.name || payload.email,
           picture: payload.picture
         });
-      } catch(e){ console.warn('Google token parse failed', e); }
+      } catch(e){
+        console.warn('Google token parse failed', e);
+      }
     }
   });
   window.google.accounts.id.renderButton(
@@ -36,4 +38,6 @@ export function initGoogleSignIn(clientId){
   );
 }
 
-export function signOut(){ setActiveUser(null); }
+export function signOut(){
+  setActiveUser(null);
+}

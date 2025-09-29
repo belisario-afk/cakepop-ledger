@@ -1,23 +1,26 @@
-# Privacy Policy
+# Privacy Policy (SmallBatch)
 
-SmallBatch stores all data locally in your browser. Data only leaves if you:
-1. Export (plain or encrypted)
-2. Configure GitHub Gist backup
+SmallBatch stores all operational data (products, ingredients, recipes, sales, expenses) locally in your browser via LocalStorage. Data never leaves your device unless you enable GitHub Gist backups or manually export it.
 
-No analytics, ads, or hidden tracking.
+## Data Stored
+- Products (name, costs, price)
+- Ingredients (unit, cost per unit)
+- Recipes (ingredient → quantity)
+- Sales (date, product, quantity, unit price, discount, notes)
+- Expenses (date, category, amount, notes)
+- Meta timestamps
 
-## Stored Data
-Products, Ingredients, Recipes, Sales, Expenses, Theme/Settings, timestamps.
+## Export / Encryption
+Plain JSON & encrypted JSON exports are user‑initiated.
 
 ## Removal
-Use "Reset All Data" (per user) or clear site storage via browser.
-
-## Encryption
-AES-GCM with PBKDF2 derived key (password unknown to the app). Losing password = irrecoverable export.
+Use "Reset All Data" (per signed-in user) or clear site storage in browser settings.
 
 ## Third Parties
-- Google Identity (if sign-in used)
-- GitHub API (if gist backup used)
+- Google Identity Services (only for sign-in & ID token).
+- GitHub API (only if you configure gist backups).
+
+No analytics, no ads.
 
 ## Changes
-Updates to privacy will appear here.
+Updates to privacy will appear here. Continue use implies acceptance.
